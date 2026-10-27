@@ -1,0 +1,26 @@
+{
+  "name": "tandem-couples-language-learning",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint app.js config.js eslint.config.js src tests vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "7.3.7",
+    "vitest": "5.0.5"
+  }
+}

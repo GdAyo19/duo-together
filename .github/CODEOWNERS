@@ -1,0 +1,3 @@
+# Assign real team handles before enforcing ownership review.
+# Example: /app.js @your-org/frontend
+# Example: /supabase/ @your-org/platform

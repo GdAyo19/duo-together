@@ -1,43 +1,9 @@
-const languagePacks = {
-  fr: {
-    name: "French",
-    speech: "fr-FR",
-    phrase: "Tu me fais sourire.",
-    translation: "You make me smile.",
-    description: "Three lovely French phrases, one little game, and five minutes just for you two.",
-    questions: [
-      { prompt: "I miss you", answers: ["Tu me manques", "Je t'aime bien", "Tu es mon ami"], correct: 0 },
-      { prompt: "You make me smile", answers: ["Tu es très drôle", "Tu me fais sourire", "Je suis heureux"], correct: 1 },
-      { prompt: "My favorite person", answers: ["Mon meilleur jour", "Ma jolie maison", "Ma personne préférée"], correct: 2 }
-    ]
-  },
-  es: {
-    name: "Spanish",
-    speech: "es-ES",
-    phrase: "Me haces sonreír.",
-    translation: "You make me smile.",
-    description: "Three lovely Spanish phrases, one little game, and five minutes just for you two.",
-    questions: [
-      { prompt: "I miss you", answers: ["Te extraño", "Me gustas", "Eres mi amigo"], correct: 0 },
-      { prompt: "You make me smile", answers: ["Eres muy amable", "Me haces sonreír", "Estoy feliz"], correct: 1 },
-      { prompt: "My favorite person", answers: ["Mi mejor día", "Mi persona favorita", "Mi casa bonita"], correct: 1 }
-    ]
-  },
-  it: {
-    name: "Italian",
-    speech: "it-IT",
-    phrase: "Mi fai sorridere.",
-    translation: "You make me smile.",
-    description: "Three lovely Italian phrases, one little game, and five minutes just for you two.",
-    questions: [
-      { prompt: "I miss you", answers: ["Mi piaci", "Sei mio amico", "Mi manchi"], correct: 2 },
-      { prompt: "You make me smile", answers: ["Mi fai sorridere", "Sono felice", "Sei molto gentile"], correct: 0 },
-      { prompt: "My favorite person", answers: ["La mia giornata", "La mia persona preferita", "La mia bella casa"], correct: 1 }
-    ]
-  }
-};
+import { createClient } from "@supabase/supabase-js";
+import { languagePacks } from "./src/domain/languages";
+import { getSharedStreak, summarizePractice } from "./src/domain/progress";
 
 const localKey = "tandem-shared-space-v1";
+const phrasePageSize = 30;
 const dialog = document.querySelector("#challenge-dialog");
 const languageDialog = document.querySelector("#language-dialog");
 const authDialog = document.querySelector("#auth-dialog");
@@ -56,7 +22,6 @@ const syncState = document.querySelector("#sync-state");
 const syncLabel = document.querySelector("#sync-label");
 let localState = readLocalState();
 let activeLanguage = localState.language;
-let activeView = "home";
 let questionIndex = 0;
 let completed = false;
 let sessionToken = 0;
@@ -66,6 +31,11 @@ let couple = null;
 let members = [];
 let practiceDays = [];
 let savedPhrases = [];
+let savedPhrasesTotal = 0;
+let sharedProgress = null;
+let sharedChannel = null;
+let sharedChannelCoupleId = null;
+let realtimeRefreshTimer;
 let toastTimer;
 
 function readLocalState() {
@@ -131,7 +101,6 @@ function showAppViews() {
 function switchView(name, updateHash = true) {
   const view = document.querySelector(`#${name}-view`);
   if (!view) return;
-  activeView = name;
   document.querySelectorAll(".view").forEach((section) => {
     const selected = section === view;
     section.classList.toggle("hidden", !selected);
@@ -176,35 +145,6 @@ function getPracticeRows() {
   return couple ? practiceDays : localState.practiceDays;
 }
 
-function dateRowsByMember(rows) {
-  const dateMap = new Map();
-  for (const row of rows) {
-    const day = row.practiced_on || row.practice_date;
-    const id = row.user_id || row.person;
-    if (!day || !id) continue;
-    if (!dateMap.has(day)) dateMap.set(day, new Set());
-    dateMap.get(day).add(id);
-  }
-  return dateMap;
-}
-
-function getSharedStreak(rows, people) {
-  if (people.length < 2 || people.some((person) => person.pending)) return 0;
-  const byDay = dateRowsByMember(rows);
-  const completeDay = (day) => {
-    const practiced = byDay.get(day);
-    return practiced && people.every((person) => practiced.has(person.id));
-  };
-  const today = new Date(`${currentDate()}T00:00:00Z`);
-  if (!completeDay(currentDate())) today.setUTCDate(today.getUTCDate() - 1);
-  let streak = 0;
-  while (completeDay(today.toISOString().slice(0, 10))) {
-    streak += 1;
-    today.setUTCDate(today.getUTCDate() - 1);
-  }
-  return streak;
-}
-
 function renderLane(container, people, rows, day) {
   const todaysRows = rows.filter((row) => (row.practiced_on || row.practice_date) === day);
   container.replaceChildren();
@@ -245,7 +185,7 @@ function renderLane(container, people, rows, day) {
   });
 }
 
-function renderSavedPhrases(phrases) {
+function renderSavedPhrases(phrases, total = phrases.length) {
   const list = document.querySelector("#saved-list");
   list.replaceChildren();
   if (!phrases.length) {
@@ -281,6 +221,40 @@ function renderSavedPhrases(phrases) {
     row.append(words, remove);
     list.append(row);
   });
+
+  if (phrases.length < total) {
+    const loadMore = document.createElement("button");
+    loadMore.className = "text-action load-more-phrases";
+    loadMore.type = "button";
+    loadMore.textContent = "Load more phrases";
+    loadMore.addEventListener("click", () => {
+      loadMore.disabled = true;
+      loadMore.textContent = "Loading…";
+      loadMoreSavedPhrases().catch((error) => {
+        console.error("Could not load more saved phrases.", error);
+        showToast(`Could not load more phrases: ${error.message}`);
+      });
+    });
+    list.append(loadMore);
+  }
+}
+
+async function loadMoreSavedPhrases() {
+  if (!supabase || !couple || !authUser) return;
+  const cursor = savedPhrases.at(-1);
+  if (!cursor) return;
+  const { data, error } = await supabase
+    .from("saved_phrases")
+    .select("id, language, phrase, translation, created_at")
+    .eq("couple_id", couple.id)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`)
+    .limit(phrasePageSize);
+  if (error) throw error;
+
+  savedPhrases = [...savedPhrases, ...data];
+  render();
 }
 
 function renderInvitePanel(people) {
@@ -347,9 +321,7 @@ function render() {
   const rows = getPracticeRows();
   const today = currentDate();
   const saved = couple ? savedPhrases : localState.savedPhrases;
-  const practicedToday = rows.filter((row) => (row.practiced_on || row.practice_date) === today);
-  const learnedDays = new Set(rows.map((row) => row.practiced_on || row.practice_date).filter(Boolean));
-  const minutesToday = practicedToday.reduce((sum, row) => sum + Number(row.minutes || 0), 0);
+  const progress = sharedProgress || summarizePractice(rows, today);
   const pairName = couple?.name || localState.members.join(" & ");
 
   document.querySelector("#couple-name").textContent = pairName;
@@ -360,10 +332,14 @@ function render() {
   document.querySelector("#lesson-description").textContent = language.description;
   document.querySelector("#phrase-target").textContent = language.phrase;
   document.querySelector("#phrase-translation").textContent = language.translation;
-  document.querySelector("#streak-count").textContent = String(getSharedStreak(rows, people));
-  document.querySelector("#word-count").textContent = String(learnedDays.size * 3);
-  document.querySelector("#phrase-count").textContent = String(saved.length);
-  document.querySelector("#minutes-count").textContent = String(minutesToday);
+  document.querySelector("#streak-count").textContent = String(
+    sharedProgress ? sharedProgress.streak : getSharedStreak(rows, people, today)
+  );
+  document.querySelector("#word-count").textContent = String(
+    sharedProgress ? sharedProgress.words_learned : progress.wordsLearned
+  );
+  document.querySelector("#phrase-count").textContent = String(couple ? savedPhrasesTotal : saved.length);
+  document.querySelector("#minutes-count").textContent = String(progress.minutesToday);
   document.querySelector("#today-line").textContent = new Intl.DateTimeFormat("en", {
     timeZone: "UTC",
     weekday: "long",
@@ -383,7 +359,8 @@ function render() {
     month: "short",
     day: "numeric"
   }).format(new Date());
-  document.querySelector("#moments-count").textContent = `${saved.length} ${saved.length === 1 ? "phrase" : "phrases"}`;
+  const phraseCount = couple ? savedPhrasesTotal : saved.length;
+  document.querySelector("#moments-count").textContent = `${phraseCount} ${phraseCount === 1 ? "phrase" : "phrases"}`;
   document.querySelector("#phrase-hint").textContent = saved.some((item) => item.phrase === language.phrase)
     ? "Already in your shared moments."
     : "Say it to each other today.";
@@ -395,7 +372,7 @@ function render() {
 
   renderLane(document.querySelector("#practice-lanes"), people, rows, today);
   renderLane(document.querySelector("#practice-lanes-large"), people, rows, today);
-  renderSavedPhrases(saved);
+  renderSavedPhrases(saved, phraseCount);
   renderInvitePanel(people);
 
   if (couple) {
@@ -479,6 +456,35 @@ function startChallenge() {
   dialog.showModal();
 }
 
+function stopSharedUpdates() {
+  if (sharedChannel && supabase) {
+    supabase.removeChannel(sharedChannel).catch((error) => {
+      console.error("Could not stop shared updates.", error);
+    });
+  }
+  sharedChannel = null;
+  sharedChannelCoupleId = null;
+}
+
+function subscribeToSharedUpdates(coupleId) {
+  if (!supabase || sharedChannelCoupleId === coupleId) return;
+  stopSharedUpdates();
+
+  sharedChannelCoupleId = coupleId;
+  sharedChannel = supabase
+    .channel(`couple:${coupleId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "practice_days", filter: `couple_id=eq.${coupleId}` }, refreshSharedSpace)
+    .on("postgres_changes", { event: "*", schema: "public", table: "saved_phrases", filter: `couple_id=eq.${coupleId}` }, refreshSharedSpace)
+    .on("postgres_changes", { event: "*", schema: "public", table: "couples", filter: `id=eq.${coupleId}` }, refreshSharedSpace)
+    .on("postgres_changes", { event: "*", schema: "public", table: "couple_members", filter: `couple_id=eq.${coupleId}` }, refreshSharedSpace)
+    .subscribe((status, error) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.error("Live shared updates are unavailable.", error || status);
+        setSyncStatus("offline", "Live updates unavailable");
+      }
+    });
+}
+
 async function loadSharedSpace(user) {
   const token = ++sessionToken;
   const { data: membership, error: membershipError } = await supabase
@@ -490,10 +496,13 @@ async function loadSharedSpace(user) {
   if (token !== sessionToken) return;
 
   if (!membership) {
+    stopSharedUpdates();
     couple = null;
     members = [];
     practiceDays = [];
     savedPhrases = [];
+    savedPhrasesTotal = 0;
+    sharedProgress = null;
     setSyncStatus("online", "Signed in · set up your space");
     document.querySelector("#account-button").textContent = "Sign out";
     showPairingScreen();
@@ -503,38 +512,56 @@ async function loadSharedSpace(user) {
   const [
     { data: coupleData, error: coupleError },
     { data: memberData, error: memberError },
-    { data: practiceData, error: practiceError },
-    { data: phraseData, error: phraseError }
+    { data: progressData, error: progressError },
+    { data: phraseData, error: phraseError, count: phraseCount }
   ] = await Promise.all([
     supabase.from("couples").select("id, name, language, invite_code").eq("id", membership.couple_id).single(),
     supabase.from("couple_members").select("user_id, display_name, joined_at").eq("couple_id", membership.couple_id).order("joined_at"),
-    supabase.from("practice_days").select("user_id, practiced_on, words_learned, minutes").eq("couple_id", membership.couple_id).order("practiced_on", { ascending: false }).limit(400),
-    supabase.from("saved_phrases").select("id, language, phrase, translation, created_at").eq("couple_id", membership.couple_id).order("created_at", { ascending: false }).limit(100)
+    supabase.rpc("get_couple_progress", { p_couple_id: membership.couple_id }),
+    supabase.from("saved_phrases").select("id, language, phrase, translation, created_at", { count: "exact" })
+      .eq("couple_id", membership.couple_id)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(0, phrasePageSize - 1)
   ]);
   if (token !== sessionToken) return;
   if (coupleError) throw coupleError;
   if (memberError) throw memberError;
-  if (practiceError) throw practiceError;
+  if (progressError) throw progressError;
   if (phraseError) throw phraseError;
   if (token !== sessionToken) return;
 
   couple = coupleData;
   members = memberData;
-  practiceDays = practiceData;
+  sharedProgress = {
+    streak: progressData.streak,
+    words_learned: progressData.words_learned,
+    minutesToday: progressData.minutes_today
+  };
+  practiceDays = progressData.today_user_ids.map((userId) => ({
+    user_id: userId,
+    practiced_on: currentDate(),
+    minutes: 5
+  }));
   savedPhrases = phraseData;
+  savedPhrasesTotal = phraseCount || 0;
   activeLanguage = couple.language;
   showAppViews();
   render();
+  subscribeToSharedUpdates(couple.id);
 }
 
 async function handleSession(session) {
   authUser = session?.user || null;
   if (!authUser) {
     sessionToken += 1;
+    stopSharedUpdates();
     couple = null;
     members = [];
     practiceDays = [];
     savedPhrases = [];
+    savedPhrasesTotal = 0;
+    sharedProgress = null;
     showAppViews();
     render();
     return;
@@ -568,7 +595,6 @@ async function initializeBackend() {
   }
 
   try {
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -687,11 +713,14 @@ async function removePhrase(phrase) {
 
 function refreshSharedSpace() {
   if (!supabase || !authUser || !couple || document.visibilityState !== "visible") return;
-  loadSharedSpace(authUser).catch((error) => {
-    console.error("Could not refresh the shared Tandem space.", error);
-    setSyncStatus("offline", "Couldn't refresh shared space");
-    showToast(`Could not refresh shared progress: ${error.message}`);
-  });
+  window.clearTimeout(realtimeRefreshTimer);
+  realtimeRefreshTimer = window.setTimeout(() => {
+    loadSharedSpace(authUser).catch((error) => {
+      console.error("Could not refresh the shared Tandem space.", error);
+      setSyncStatus("offline", "Couldn't refresh shared space");
+      showToast(`Could not refresh shared progress: ${error.message}`);
+    });
+  }, 250);
 }
 
 async function updateLanguage(code) {
@@ -905,7 +934,6 @@ window.addEventListener("hashchange", () => {
 
 window.addEventListener("focus", refreshSharedSpace);
 document.addEventListener("visibilitychange", refreshSharedSpace);
-window.setInterval(refreshSharedSpace, 30000);
 
 const requestedView = window.location.hash.slice(1);
 if (["home", "practice", "moments"].includes(requestedView)) switchView(requestedView, false);
