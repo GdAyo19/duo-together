@@ -7,6 +7,7 @@ const phrasePageSize = 30;
 const dialog = document.querySelector("#challenge-dialog");
 const languageDialog = document.querySelector("#language-dialog");
 const authDialog = document.querySelector("#auth-dialog");
+const themeToggle = document.querySelector("#theme-toggle");
 const questionNumber = document.querySelector("#question-number");
 const progressBar = document.querySelector("#quiz-progress-bar");
 const questionTitle = document.querySelector("#dialog-title");
@@ -401,12 +402,23 @@ function setFormMessage(element, message, kind = "") {
   element.className = `${element.classList.contains("pairing-message") ? "pairing-message" : "form-message"}${kind ? ` ${kind}` : ""}`;
 }
 
+function applyTheme(theme) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  themeToggle.querySelector(".theme-icon").textContent = isDark ? "☀" : "☾";
+  themeToggle.querySelector(".theme-label").textContent = isDark ? "Light mode" : "Dark mode";
+  themeToggle.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} theme`);
+  themeToggle.setAttribute("aria-pressed", String(isDark));
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", isDark ? "#151b18" : "#ffffff");
+}
+
 function showPasswordLogin() {
   document.querySelector("#auth-title").textContent = "Welcome back.";
   document.querySelector("#auth-copy").textContent = "Sign in with your email and password.";
   document.querySelector("#password-login-form").classList.remove("hidden");
   document.querySelector("#forgot-password").classList.remove("hidden");
   document.querySelector("#show-email-link").classList.remove("hidden");
+  document.querySelector("#auth-provider-options").classList.remove("hidden");
   document.querySelector("#email-form").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.add("hidden");
   document.querySelector("#password-reset-form").classList.add("hidden");
@@ -776,6 +788,31 @@ document.querySelector("#menu-button").addEventListener("click", () => {
   document.querySelector("#menu-button").setAttribute("aria-expanded", String(open));
 });
 
+applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+
+themeToggle.addEventListener("click", () => {
+  const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(nextTheme);
+  try {
+    localStorage.setItem("tandem-theme", nextTheme);
+  } catch (error) {
+    console.error("Could not save the selected Tandem theme.", error);
+    showToast("Theme changed, but this browser could not save your preference.");
+  }
+});
+
+document.querySelectorAll("[data-password-toggle]").forEach((toggle) => {
+  const input = document.getElementById(toggle.getAttribute("aria-controls"));
+  toggle.addEventListener("click", () => {
+    const visible = input.type === "password";
+    input.type = visible ? "text" : "password";
+    toggle.textContent = visible ? "Hide" : "Show";
+    toggle.setAttribute("aria-label", `${visible ? "Hide" : "Show"} password`);
+    toggle.setAttribute("aria-pressed", String(visible));
+    input.focus({ preventScroll: true });
+  });
+});
+
 document.querySelector("#account-button").addEventListener("click", () => {
   if (!supabase) {
     showToast("Cloud sync is not connected. Add Supabase settings in config.js to sign in.");
@@ -795,6 +832,7 @@ document.querySelector("#show-email-link").addEventListener("click", () => {
   document.querySelector("#password-login-form").classList.add("hidden");
   document.querySelector("#forgot-password").classList.add("hidden");
   document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#auth-provider-options").classList.add("hidden");
   document.querySelector("#email-form").classList.remove("hidden");
   document.querySelector("#auth-copy").textContent = "Use an email link to sign in, then set a password from Account.";
 });
@@ -806,6 +844,7 @@ document.querySelector("#forgot-password").addEventListener("click", () => {
   document.querySelector("#password-login-form").classList.add("hidden");
   document.querySelector("#forgot-password").classList.add("hidden");
   document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#auth-provider-options").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.remove("hidden");
   document.querySelector("#auth-message").textContent = "";
 });
@@ -816,6 +855,7 @@ function showPasswordRecovery() {
   document.querySelector("#password-login-form").classList.add("hidden");
   document.querySelector("#forgot-password").classList.add("hidden");
   document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#auth-provider-options").classList.add("hidden");
   document.querySelector("#email-form").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.add("hidden");
   document.querySelector("#password-reset-form").classList.remove("hidden");
@@ -843,6 +883,28 @@ document.querySelector("#password-login-form").addEventListener("submit", async 
     console.error("Could not sign in with a password.", error);
     setFormMessage(message, `Could not sign in: ${error.message}`, "error");
   } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#google-sign-in").addEventListener("click", async (event) => {
+  if (!supabase) {
+    showToast("Cloud sync is not connected. Add Supabase settings in config.js to sign in.");
+    return;
+  }
+  const button = event.currentTarget;
+  const message = document.querySelector("#auth-message");
+  button.disabled = true;
+  setFormMessage(message, "Connecting to Google…");
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
+    });
+    if (error) throw error;
+  } catch (error) {
+    console.error("Could not sign in with Google.", error);
+    setFormMessage(message, `Could not sign in with Google: ${error.message}`, "error");
     button.disabled = false;
   }
 });

@@ -6,6 +6,13 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="description" content="A little language practice, a little more connection. Learn together with Tandem.">
     <title>Tandem — Your shared language space</title>
+    <script>
+      try {
+        if (localStorage.getItem("tandem-theme") === "dark") document.documentElement.dataset.theme = "dark";
+      } catch (error) {
+        console.error("Could not load the saved Tandem theme.", error);
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:wght@400;500&display=swap" rel="stylesheet">
@@ -48,6 +55,7 @@
         <div class="main-inner">
           <div class="account-row">
             <span class="sync-state" id="sync-state"><span class="sync-dot"></span><span id="sync-label">Saved on this device</span></span>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark mode</span></button>
             <button class="account-button" id="account-button" type="button">Sign in to sync</button>
           </div>
 
@@ -229,9 +237,16 @@
         <label for="login-email">Email address</label>
         <input id="login-email" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
         <label for="login-password">Password</label>
-        <input id="login-password" type="password" name="password" autocomplete="current-password" required>
+        <div class="password-field">
+          <input id="login-password" type="password" name="password" autocomplete="current-password" required>
+          <button class="password-toggle" type="button" data-password-toggle aria-controls="login-password" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <button class="primary-button" type="submit">Sign in</button>
       </form>
+      <div class="auth-provider-options" id="auth-provider-options">
+        <div class="auth-divider"><span>or continue with</span></div>
+        <button class="google-button" id="google-sign-in" type="button"><span class="google-g" aria-hidden="true">G</span> Continue with Google</button>
+      </div>
       <button class="auth-switch-button" id="forgot-password" type="button">Forgot password?</button>
       <button class="auth-switch-button" id="show-email-link" type="button">First time? Email me a sign-in link</button>
       <form id="email-form" class="dialog-form hidden">
@@ -246,9 +261,15 @@
       </form>
       <form id="password-reset-form" class="dialog-form hidden">
         <label for="reset-password">New password</label>
-        <input id="reset-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        <div class="password-field">
+          <input id="reset-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+          <button class="password-toggle" type="button" data-password-toggle aria-controls="reset-password" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <label for="reset-password-confirm">Confirm new password</label>
-        <input id="reset-password-confirm" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        <div class="password-field">
+          <input id="reset-password-confirm" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+          <button class="password-toggle" type="button" data-password-toggle aria-controls="reset-password-confirm" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <button class="primary-button" type="submit">Save new password</button>
       </form>
       <p class="form-message" id="auth-message" aria-live="polite"></p>
@@ -262,9 +283,15 @@
       <p class="dialog-copy">Set a password so you can sign in again without waiting for an email link.</p>
       <form id="set-password-form" class="dialog-form">
         <label for="new-password">New password</label>
-        <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        <div class="password-field">
+          <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+          <button class="password-toggle" type="button" data-password-toggle aria-controls="new-password" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <label for="confirm-password">Confirm password</label>
-        <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        <div class="password-field">
+          <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+          <button class="password-toggle" type="button" data-password-toggle aria-controls="confirm-password" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <button class="primary-button" type="submit">Save password</button>
       </form>
       <p class="form-message" id="account-message" aria-live="polite"></p>
