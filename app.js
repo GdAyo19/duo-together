@@ -92,6 +92,8 @@ function setSyncStatus(status, label) {
 function showPairingScreen() {
   appViews.classList.add("hidden");
   pairingScreen.classList.remove("hidden");
+  document.title = "Find your person | Tandem";
+  document.querySelector('meta[name="description"]').setAttribute("content", "Create a shared Tandem space and invite someone you love to practice a new language together.");
 }
 
 function showAppViews() {
@@ -102,6 +104,20 @@ function showAppViews() {
 function switchView(name, updateHash = true) {
   const view = document.querySelector(`#${name}-view`);
   if (!view) return;
+  const page = {
+    home: {
+      title: "Your shared space | Tandem",
+      description: "See your shared language practice, celebrate small wins, and find your next five-minute date."
+    },
+    practice: {
+      title: "Practice together | Tandem",
+      description: "Play a quick language challenge together and make five minutes of practice part of your day."
+    },
+    moments: {
+      title: "Your saved moments | Tandem",
+      description: "Keep the words and phrases you have learned together in one shared collection."
+    }
+  }[name];
   document.querySelectorAll(".view").forEach((section) => {
     const selected = section === view;
     section.classList.toggle("hidden", !selected);
@@ -115,6 +131,8 @@ function switchView(name, updateHash = true) {
   });
   document.querySelector("#sidebar").classList.remove("mobile-open");
   document.querySelector("#menu-button").setAttribute("aria-expanded", "false");
+  document.title = page.title;
+  document.querySelector('meta[name="description"]').setAttribute("content", page.description);
   if (updateHash && window.location.hash !== `#${name}`) {
     window.history.replaceState(null, "", `#${name}`);
   }
@@ -426,6 +444,7 @@ function showPasswordLogin() {
   document.querySelector("#forgot-password").classList.remove("hidden");
   document.querySelector("#show-email-link").classList.remove("hidden");
   document.querySelector("#auth-provider-options").classList.remove("hidden");
+  document.querySelector("#auth-back-to-sign-in").classList.add("hidden");
   document.querySelector("#email-form").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.add("hidden");
   document.querySelector("#password-reset-form").classList.add("hidden");
@@ -841,6 +860,8 @@ document.querySelector("#show-email-link").addEventListener("click", () => {
   document.querySelector("#show-email-link").classList.add("hidden");
   document.querySelector("#auth-provider-options").classList.add("hidden");
   document.querySelector("#email-form").classList.remove("hidden");
+  document.querySelector("#auth-back-to-sign-in").classList.remove("hidden");
+  document.querySelector("#auth-message").textContent = "";
   document.querySelector("#auth-copy").textContent = "Use an email link to sign in, then set a password from Account.";
 });
 
@@ -853,7 +874,13 @@ document.querySelector("#forgot-password").addEventListener("click", () => {
   document.querySelector("#show-email-link").classList.add("hidden");
   document.querySelector("#auth-provider-options").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.remove("hidden");
+  document.querySelector("#auth-back-to-sign-in").classList.remove("hidden");
   document.querySelector("#auth-message").textContent = "";
+});
+
+document.querySelector("#auth-back-to-sign-in").addEventListener("click", () => {
+  showPasswordLogin();
+  document.querySelector("#login-email").focus();
 });
 
 function showPasswordRecovery() {
@@ -866,6 +893,7 @@ function showPasswordRecovery() {
   document.querySelector("#email-form").classList.add("hidden");
   document.querySelector("#password-recovery-form").classList.add("hidden");
   document.querySelector("#password-reset-form").classList.remove("hidden");
+  document.querySelector("#auth-back-to-sign-in").classList.remove("hidden");
   document.querySelector("#auth-message").textContent = "";
   if (!authDialog.open) authDialog.showModal();
   document.querySelector("#reset-password").focus();

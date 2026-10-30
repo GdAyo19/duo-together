@@ -2,6 +2,14 @@
 
 A couples language-learning MVP for Okomi and Ifemi: short phrase games, pronunciation, saved moments, and shared progress. Tandem is an independent project and does not connect to Duolingo.
 
+## Site pages
+
+- [About Tandem](about.html) introduces the shared-practice idea.
+- [Privacy](privacy.html) describes local preview storage and optional cloud sync.
+- `404.html` is the GitHub Pages not-found page; public discovery files and brand assets live in `public/`.
+
+The canonical and social URLs currently use the free GitHub Pages address: `https://gdayo19.github.io/duo-together/`. If you connect a custom domain later, update the canonical URLs, social metadata, sitemap, robots file, and the 404 page's base path together.
+
 ## Run locally
 
 Install the pinned dependencies and start the local development server:

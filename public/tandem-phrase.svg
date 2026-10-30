@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="540" viewBox="0 0 640 540" role="img" aria-labelledby="title description">
+  <title id="title">A shared phrase card</title>
+  <desc id="description">A French phrase card reads “on apprend ensemble,” meaning “we learn together,” with two overlapping conversation bubbles.</desc>
+  <rect width="640" height="540" rx="34" fill="#f5f8f6"/>
+  <circle cx="528" cy="103" r="88" fill="#e2ece6"/>
+  <circle cx="82" cy="438" r="97" fill="#efe9e1"/>
+  <path d="M434 374c-12 0-22-10-22-22v-93c0-12 10-22 22-22h137c12 0 22 10 22 22v93c0 12-10 22-22 22h-35l-25 23-25-23z" fill="#e0ece7" stroke="#d4e2d9" stroke-width="2"/>
+  <path d="M467 287h70M467 312h50" fill="none" stroke="#315d4b" stroke-linecap="round" stroke-width="5"/>
+  <g transform="rotate(-5 294 257)">
+    <rect x="111" y="69" width="344" height="400" rx="27" fill="#fff" stroke="#e5e9e6" stroke-width="2"/>
+    <rect x="139" y="96" width="54" height="54" rx="27" fill="#1b6e66"/>
+    <text x="166" y="133" fill="#fff" font-family="Georgia,serif" font-size="32" text-anchor="middle">t.</text>
+    <text x="139" y="202" fill="#1b6e66" font-family="Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="2">A PHRASE FOR TWO</text>
+    <text x="139" y="273" fill="#1f2824" font-family="Georgia,serif" font-size="37">On apprend</text>
+    <text x="139" y="321" fill="#1f2824" font-family="Georgia,serif" font-size="37">ensemble.</text>
+    <path d="M139 352h282" stroke="#e5e9e6" stroke-width="2"/>
+    <text x="139" y="393" fill="#59645f" font-family="Arial,sans-serif" font-size="18">We learn together.</text>
+    <circle cx="367" cy="427" r="19" fill="#f1e7df"/>
+    <circle cx="395" cy="427" r="19" fill="#e0ece7"/>
+  </g>
+</svg>

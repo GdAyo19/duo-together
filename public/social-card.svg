@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Tandem — Language learning for two</title>
+  <desc id="description">A shared phrase card with French and English words, framed by soft green and warm cream shapes.</desc>
+  <rect width="1200" height="630" fill="#f5f8f6"/>
+  <circle cx="1050" cy="96" r="220" fill="#e1ece6"/>
+  <circle cx="1105" cy="552" r="190" fill="#efe9e1"/>
+  <rect x="775" y="100" width="300" height="420" rx="28" fill="#e5eee8" transform="rotate(7 775 100)"/>
+  <g transform="rotate(-5 925 315)">
+    <rect x="760" y="116" width="310" height="404" rx="26" fill="#fff" stroke="#e5e9e6" stroke-width="2"/>
+    <rect x="786" y="145" width="56" height="56" rx="28" fill="#1b6e66"/>
+    <text x="814" y="183" fill="#fff" font-family="Georgia,serif" font-size="34" text-anchor="middle">t.</text>
+    <text x="787" y="253" fill="#1b6e66" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">A PHRASE FOR TWO</text>
+    <text x="787" y="306" fill="#1f2824" font-family="Georgia,serif" font-size="27">On apprend</text>
+    <text x="787" y="354" fill="#1f2824" font-family="Georgia,serif" font-size="27">ensemble.</text>
+    <path d="M787 382h250" stroke="#e5e9e6" stroke-width="2"/>
+    <text x="787" y="420" fill="#59645f" font-family="Arial,sans-serif" font-size="18">We learn together.</text>
+    <circle cx="1003" cy="474" r="22" fill="#f1e7df"/>
+    <circle cx="1032" cy="474" r="22" fill="#e0ece7"/>
+  </g>
+  <text x="104" y="177" fill="#1b6e66" font-family="Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="4">A LANGUAGE SPACE FOR TWO</text>
+  <text x="100" y="280" fill="#1f2824" font-family="Georgia,serif" font-size="56">Keep a little</text>
+  <text x="100" y="355" fill="#1f2824" font-family="Georgia,serif" font-size="56">language between you.</text>
+  <text x="104" y="435" fill="#59645f" font-family="Arial,sans-serif" font-size="25">Five-minute dates. Shared words. More to talk about.</text>
+  <rect x="100" y="485" width="48" height="48" rx="24" fill="#1b6e66"/>
+  <text x="124" y="519" fill="#fff" font-family="Georgia,serif" font-size="34" text-anchor="middle">t.</text>
+  <text x="165" y="518" fill="#1f2824" font-family="Arial,sans-serif" font-size="25" font-weight="700">Tandem</text>
+</svg>

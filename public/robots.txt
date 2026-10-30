@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gdayo19.github.io/duo-together/sitemap.xml

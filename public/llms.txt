@@ -1,0 +1,9 @@
+# Tandem
+
+> Tandem is an independent language-learning space for two people to practice together through short lessons, phrase games, and a shared collection of saved words.
+
+- [Open Tandem](https://gdayo19.github.io/duo-together/): Shared language practice and saved phrases.
+- [About Tandem](https://gdayo19.github.io/duo-together/about.html): How the product is meant to be used.
+- [Privacy](https://gdayo19.github.io/duo-together/privacy.html): What the app stores on-device and when cloud sync is enabled.
+
+Tandem is not affiliated with Duolingo.

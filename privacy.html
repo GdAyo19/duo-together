@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="application-name" content="Tandem">
+    <meta name="description" content="A plain-language guide to what Tandem saves in your browser and what it stores when cloud sync is enabled.">
+    <link rel="canonical" href="https://gdayo19.github.io/duo-together/privacy.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Tandem">
+    <meta property="og:title" content="Privacy — Tandem">
+    <meta property="og:description" content="Learn what Tandem stores on your device and when account data is handled by Supabase.">
+    <meta property="og:url" content="https://gdayo19.github.io/duo-together/privacy.html">
+    <meta property="og:image" content="https://gdayo19.github.io/duo-together/social-card.png">
+    <meta property="og:image:alt" content="Tandem — small language lessons, made for two.">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Privacy — Tandem">
+    <meta name="twitter:description" content="Learn what Tandem stores on your device and when account data is handled by Supabase.">
+    <meta name="twitter:image" content="https://gdayo19.github.io/duo-together/social-card.png">
+    <title>Privacy — Tandem</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body class="public-page">
+    <div class="public-page-shell">
+      <header class="public-header">
+        <a class="brand" href="./index.html" aria-label="Tandem home">
+          <span class="brand-mark" aria-hidden="true">t.</span>
+          <span>Tandem</span>
+        </a>
+        <nav class="public-nav" aria-label="Main navigation">
+          <a href="./about.html">About</a>
+          <a href="./privacy.html" aria-current="page">Privacy</a>
+          <a class="public-nav-cta" href="./index.html#practice">Open Tandem <span aria-hidden="true">→</span></a>
+        </nav>
+      </header>
+
+      <main class="public-main">
+        <nav class="public-breadcrumbs" aria-label="Breadcrumb">
+          <a href="./index.html">Home</a> <span aria-hidden="true">/</span> <span aria-current="page">Privacy</span>
+        </nav>
+        <article class="public-content">
+          <p class="public-eyebrow">A clear, simple guide</p>
+          <h1>Privacy, in plain language.</h1>
+          <p class="public-lede">Tandem stores practice on your device in preview mode. If you connect an account and shared space, it uses Supabase to sign you in and sync shared activity.</p>
+
+          <section aria-labelledby="device-title">
+            <h2 id="device-title">When you use preview mode</h2>
+            <p>Your language choice, practice, and saved phrases are kept in this browser’s local storage. They stay on this device and are not shared across browsers or devices. Clearing this browser’s site data can remove them.</p>
+          </section>
+
+          <section aria-labelledby="account-title">
+            <h2 id="account-title">When cloud sync is connected</h2>
+            <p>Sign-in and account details are handled by the Supabase project configured for Tandem. A shared space can store its name, language, member display names, practice records, and saved phrases. Database policies limit shared records to members of that space; Supabase processes and hosts this data.</p>
+            <p>If you use Google sign-in, Google also handles its part of the authentication flow. Tandem does not receive your Google password.</p>
+          </section>
+
+          <section aria-labelledby="tracking-title">
+            <h2 id="tracking-title">Analytics and advertising</h2>
+            <p>The app does not include an analytics or advertising integration. The site does load fonts from Google Fonts; your browser requests those font files from Google when the font is not already available locally.</p>
+          </section>
+
+          <section aria-labelledby="choices-title">
+            <h2 id="choices-title">Your choices</h2>
+            <ul>
+              <li>Use preview mode without signing in; its practice stays in this browser.</li>
+              <li>Sign out from your account controls to end the current session on this device.</li>
+              <li>To manage or remove cloud account data, use the Supabase project that operates this deployment.</li>
+            </ul>
+            <p>Tandem is an independent project. For service-specific account and data handling, review the privacy information from Supabase or Google as applicable.</p>
+          </section>
+        </article>
+      </main>
+
+      <footer class="public-footer">
+        <p>Made for Okomi &amp; Ifemi, with room for two.</p>
+        <nav aria-label="Footer navigation">
+          <a href="./index.html">Home</a>
+          <a href="./about.html">About</a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>
