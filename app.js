@@ -99,6 +99,7 @@ function showPairingScreen() {
 function showAppViews() {
   pairingScreen.classList.add("hidden");
   appViews.classList.remove("hidden");
+  switchView(document.querySelector(".view.active")?.dataset.screen ?? "home", false);
 }
 
 function switchView(name, updateHash = true) {
