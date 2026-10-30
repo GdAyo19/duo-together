@@ -42,7 +42,7 @@ The GitHub Pages site is static, so shared accounts and progress use a separate 
    For a safe rollout, apply and verify migrations against a separate staging project before production. Add future schema changes as new timestamped migrations; do not edit migrations already applied to a project.
 4. In **Authentication → URL Configuration**, set the site URL to `https://gdayo19.github.io/duo-together/` and add that URL to the redirect allow list. Add the Vite local URL (usually `http://localhost:5173/`) too if testing locally.
 5. Copy the project URL and its **publishable** (or legacy `anon`) key into `config.js`. These browser values are public; never put a `service_role` or secret key in this repository.
-6. In **Authentication → Providers**, enable email sign-in. Okomi and Ifemi can then sign in with one-time email links, and one can create a space and share its invite code with the other.
+6. In **Authentication → Providers**, enable email sign-in. A new user can sign in once with an email link, then open **Account** to set a password. After that, they can sign in with email and password without requesting a new link each time. One person can create a space and share its invite code with the other.
 
 Until Supabase is configured, the site works in preview mode and stores practice and saved phrases only in that browser. It does not sync across devices. The app only grants access to the two accounts joined to the same invite-only space.
 

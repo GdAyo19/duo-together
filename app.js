@@ -377,10 +377,10 @@ function render() {
 
   if (couple) {
     setSyncStatus("online", "Shared with your person");
-    document.querySelector("#account-button").textContent = "Sign out";
+    document.querySelector("#account-button").textContent = "Account";
   } else {
     setSyncStatus("", "Saved on this device");
-    document.querySelector("#account-button").textContent = authUser ? "Sign out" : supabase ? "Sign in to sync" : "Cloud sync not set up";
+    document.querySelector("#account-button").textContent = authUser ? "Account" : supabase ? "Sign in to sync" : "Cloud sync not set up";
   }
 }
 
@@ -504,7 +504,7 @@ async function loadSharedSpace(user) {
     savedPhrasesTotal = 0;
     sharedProgress = null;
     setSyncStatus("online", "Signed in · set up your space");
-    document.querySelector("#account-button").textContent = "Sign out";
+    document.querySelector("#account-button").textContent = "Account";
     showPairingScreen();
     return;
   }
@@ -763,23 +763,101 @@ document.querySelector("#menu-button").addEventListener("click", () => {
   document.querySelector("#menu-button").setAttribute("aria-expanded", String(open));
 });
 
-document.querySelector("#account-button").addEventListener("click", async () => {
-  if (authUser && supabase) {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
-      console.error("Could not sign out.", error);
-      showToast(`Could not sign out: ${error.message}`);
-    }
-    return;
-  }
+document.querySelector("#account-button").addEventListener("click", () => {
   if (!supabase) {
     showToast("Cloud sync is not connected. Add Supabase settings in config.js to sign in.");
     return;
   }
+  if (authUser) {
+    document.querySelector("#account-message").textContent = "";
+    document.querySelector("#account-dialog").showModal();
+  } else {
+    document.querySelector("#password-login-message").textContent = "";
+    document.querySelector("#auth-message").textContent = "";
+    authDialog.showModal();
+  }
+});
+
+document.querySelector("#show-email-link").addEventListener("click", () => {
+  document.querySelector("#email-input").value = document.querySelector("#login-email").value;
+  document.querySelector("#password-login-form").classList.add("hidden");
+  document.querySelector("#password-login-message").textContent = "";
+  document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#email-form").classList.remove("hidden");
+  document.querySelector("#show-password-login").classList.remove("hidden");
+});
+
+document.querySelector("#show-password-login").addEventListener("click", () => {
+  document.querySelector("#login-email").value = document.querySelector("#email-input").value;
+  document.querySelector("#email-form").classList.add("hidden");
+  document.querySelector("#show-password-login").classList.add("hidden");
+  document.querySelector("#password-login-form").classList.remove("hidden");
+  document.querySelector("#show-email-link").classList.remove("hidden");
   document.querySelector("#auth-message").textContent = "";
-  authDialog.showModal();
+});
+
+document.querySelector("#password-login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const message = document.querySelector("#password-login-message");
+  const values = new FormData(form);
+  button.disabled = true;
+  setFormMessage(message, "Signing you in…");
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: values.get("email").trim(),
+      password: values.get("password")
+    });
+    if (error) throw error;
+    authDialog.close();
+  } catch (error) {
+    console.error("Could not sign in with a password.", error);
+    setFormMessage(message, `Could not sign in: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#set-password-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const message = document.querySelector("#account-message");
+  const values = new FormData(form);
+  const password = values.get("password");
+  if (password !== values.get("confirmPassword")) {
+    setFormMessage(message, "Those passwords don't match. Please try again.", "error");
+    return;
+  }
+  button.disabled = true;
+  setFormMessage(message, "Saving your password…");
+  try {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    form.reset();
+    setFormMessage(message, "Password saved. You can use it the next time you sign in.", "success");
+  } catch (error) {
+    console.error("Could not save your password.", error);
+    setFormMessage(message, `Could not save password: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#sign-out-button").addEventListener("click", async () => {
+  const button = document.querySelector("#sign-out-button");
+  button.disabled = true;
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    document.querySelector("#account-dialog").close();
+  } catch (error) {
+    console.error("Could not sign out.", error);
+    setFormMessage(document.querySelector("#account-message"), `Could not sign out: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.querySelector("#email-form").addEventListener("submit", async (event) => {

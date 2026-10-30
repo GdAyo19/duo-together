@@ -215,6 +215,9 @@ h1, h2, p { margin-top: 0; }
 .dialog-form { display: grid; gap: 9px; }
 .dialog-form label { margin-top: 0; }
 .dialog-form .primary-button { margin-top: 8px; }
+.auth-switch-button { background: transparent; border: 0; color: var(--accent); cursor: pointer; font-size: 13px; margin-top: 12px; padding: 4px 0; text-align: left; }
+.auth-switch-button:hover { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+.sign-out-button { border-top: 1px solid var(--rule); color: var(--muted); margin-top: 18px; padding-top: 14px; width: 100%; }
 .privacy-note { border-top: 1px solid var(--rule); color: var(--muted); font-size: 12px; margin: 18px 0 0; padding-top: 13px; }
 .language-dialog .language-options { display: grid; gap: 8px; }
 .language-option { align-items: center; background: #fff; border: 1px solid var(--border); border-radius: 12px; display: grid; gap: 0 11px; grid-template-columns: 40px 1fr 20px; min-height: 60px; padding: 9px 12px; text-align: left; }

@@ -223,15 +223,41 @@
     <dialog class="dialog" id="auth-dialog" aria-labelledby="auth-title">
       <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close">×</button></form>
       <p class="context-label">Keep your space in sync</p>
-      <h2 id="auth-title">Sign in with a link.</h2>
-      <p class="dialog-copy">We'll email you a one-time sign-in link. No password to remember.</p>
-      <form id="email-form" class="dialog-form">
+      <h2 id="auth-title">Welcome back.</h2>
+      <p class="dialog-copy">Sign in with your email and password. If you haven't set a password yet, use an email link once and set one from your account.</p>
+      <form id="password-login-form" class="dialog-form">
+        <label for="login-email">Email address</label>
+        <input id="login-email" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" name="password" autocomplete="current-password" required>
+        <button class="primary-button" type="submit">Sign in</button>
+      </form>
+      <p class="form-message" id="password-login-message" aria-live="polite"></p>
+      <button class="auth-switch-button" id="show-email-link" type="button">Sign in with an email link instead</button>
+      <form id="email-form" class="dialog-form hidden">
         <label for="email-input">Email address</label>
         <input id="email-input" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
         <button class="primary-button" type="submit">Email me a sign-in link</button>
       </form>
+      <button class="auth-switch-button hidden" id="show-password-login" type="button">Use email and password instead</button>
       <p class="form-message" id="auth-message" aria-live="polite"></p>
       <p class="privacy-note">Your couple space is private to its two members.</p>
+    </dialog>
+
+    <dialog class="dialog" id="account-dialog" aria-labelledby="account-title">
+      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close account settings">×</button></form>
+      <p class="context-label">Your Tandem account</p>
+      <h2 id="account-title">Account settings.</h2>
+      <p class="dialog-copy">Set a password so you can sign in again without waiting for an email link.</p>
+      <form id="set-password-form" class="dialog-form">
+        <label for="new-password">New password</label>
+        <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        <label for="confirm-password">Confirm password</label>
+        <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        <button class="primary-button" type="submit">Save password</button>
+      </form>
+      <p class="form-message" id="account-message" aria-live="polite"></p>
+      <button class="auth-switch-button sign-out-button" id="sign-out-button" type="button">Sign out</button>
     </dialog>
 
     <dialog class="dialog language-dialog" id="language-dialog" aria-labelledby="language-dialog-title">
