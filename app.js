@@ -402,6 +402,13 @@ function setFormMessage(element, message, kind = "") {
   element.className = `${element.classList.contains("pairing-message") ? "pairing-message" : "form-message"}${kind ? ` ${kind}` : ""}`;
 }
 
+function emailRateLimitMessage(error, action) {
+  if (!error.message.toLowerCase().includes("rate limit")) {
+    return `Could not send the ${action}: ${error.message}`;
+  }
+  return `Supabase has temporarily rate-limited email for this project, so the ${action} wasn't sent. Wait for the limit to reset, or configure a custom SMTP provider in Supabase. If you already have a password, return to sign in with email and password.`;
+}
+
 function applyTheme(theme) {
   const isDark = theme === "dark";
   document.documentElement.dataset.theme = isDark ? "dark" : "light";
@@ -967,7 +974,7 @@ document.querySelector("#email-form").addEventListener("submit", async (event) =
     setFormMessage(message, "Check your inbox for your one-time sign-in link.", "success");
   } catch (error) {
     console.error("Could not send the sign-in link.", error);
-    setFormMessage(message, `Could not send the link: ${error.message}`, "error");
+    setFormMessage(message, emailRateLimitMessage(error, "sign-in link"), "error");
   } finally {
     button.disabled = false;
   }
@@ -989,7 +996,7 @@ document.querySelector("#password-recovery-form").addEventListener("submit", asy
     setFormMessage(message, "If an account exists for that email, a password reset link is on its way.", "success");
   } catch (error) {
     console.error("Could not send the password reset link.", error);
-    setFormMessage(message, `Could not send the reset link: ${error.message}`, "error");
+    setFormMessage(message, emailRateLimitMessage(error, "password reset link"), "error");
   } finally {
     button.disabled = false;
   }
