@@ -401,13 +401,16 @@ function setFormMessage(element, message, kind = "") {
   element.className = `${element.classList.contains("pairing-message") ? "pairing-message" : "form-message"}${kind ? ` ${kind}` : ""}`;
 }
 
-function showEmailEntry() {
-  document.querySelector("#email-form").classList.remove("hidden");
-  document.querySelector("#otp-form").classList.add("hidden");
-  document.querySelector("#resend-code").classList.add("hidden");
-  document.querySelector("#change-email").classList.add("hidden");
+function showPasswordLogin() {
+  document.querySelector("#auth-title").textContent = "Welcome back.";
+  document.querySelector("#auth-copy").textContent = "Sign in with your email and password.";
+  document.querySelector("#password-login-form").classList.remove("hidden");
+  document.querySelector("#forgot-password").classList.remove("hidden");
+  document.querySelector("#show-email-link").classList.remove("hidden");
+  document.querySelector("#email-form").classList.add("hidden");
+  document.querySelector("#password-recovery-form").classList.add("hidden");
+  document.querySelector("#password-reset-form").classList.add("hidden");
   document.querySelector("#auth-message").textContent = "";
-  document.querySelector("#otp-input").value = "";
 }
 
 function getQuestions() {
@@ -605,17 +608,18 @@ async function initializeBackend() {
 
   try {
     supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    await handleSession(session);
-    supabase.auth.onAuthStateChange((_event, nextSession) => {
+    supabase.auth.onAuthStateChange((event, nextSession) => {
       window.setTimeout(() => {
+        if (event === "PASSWORD_RECOVERY") showPasswordRecovery();
         handleSession(nextSession).catch((authError) => {
           console.error("Could not update the Tandem sign-in state.", authError);
           showToast(`Sign-in update failed: ${authError.message}`);
         });
       }, 0);
     });
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    await handleSession(session);
   } catch (error) {
     console.error("Could not connect to Supabase.", error);
     render();
@@ -781,8 +785,91 @@ document.querySelector("#account-button").addEventListener("click", () => {
     document.querySelector("#account-message").textContent = "";
     document.querySelector("#account-dialog").showModal();
   } else {
-    showEmailEntry();
+    showPasswordLogin();
     authDialog.showModal();
+  }
+});
+
+document.querySelector("#show-email-link").addEventListener("click", () => {
+  document.querySelector("#email-input").value = document.querySelector("#login-email").value;
+  document.querySelector("#password-login-form").classList.add("hidden");
+  document.querySelector("#forgot-password").classList.add("hidden");
+  document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#email-form").classList.remove("hidden");
+  document.querySelector("#auth-copy").textContent = "Use an email link to sign in, then set a password from Account.";
+});
+
+document.querySelector("#forgot-password").addEventListener("click", () => {
+  document.querySelector("#recovery-email").value = document.querySelector("#login-email").value;
+  document.querySelector("#auth-title").textContent = "Reset your password.";
+  document.querySelector("#auth-copy").textContent = "We’ll email you a secure link to choose a new password.";
+  document.querySelector("#password-login-form").classList.add("hidden");
+  document.querySelector("#forgot-password").classList.add("hidden");
+  document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#password-recovery-form").classList.remove("hidden");
+  document.querySelector("#auth-message").textContent = "";
+});
+
+function showPasswordRecovery() {
+  document.querySelector("#auth-title").textContent = "Choose a new password.";
+  document.querySelector("#auth-copy").textContent = "Your reset link is verified. Choose a new password for your account.";
+  document.querySelector("#password-login-form").classList.add("hidden");
+  document.querySelector("#forgot-password").classList.add("hidden");
+  document.querySelector("#show-email-link").classList.add("hidden");
+  document.querySelector("#email-form").classList.add("hidden");
+  document.querySelector("#password-recovery-form").classList.add("hidden");
+  document.querySelector("#password-reset-form").classList.remove("hidden");
+  document.querySelector("#auth-message").textContent = "";
+  if (!authDialog.open) authDialog.showModal();
+  document.querySelector("#reset-password").focus();
+}
+
+document.querySelector("#password-login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const message = document.querySelector("#auth-message");
+  const values = new FormData(form);
+  button.disabled = true;
+  setFormMessage(message, "Signing you in…");
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: values.get("email").trim(),
+      password: values.get("password")
+    });
+    if (error) throw error;
+    authDialog.close();
+  } catch (error) {
+    console.error("Could not sign in with a password.", error);
+    setFormMessage(message, `Could not sign in: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#set-password-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const message = document.querySelector("#account-message");
+  const values = new FormData(form);
+  const password = values.get("password");
+  if (password !== values.get("confirmPassword")) {
+    setFormMessage(message, "Those passwords don't match. Please try again.", "error");
+    return;
+  }
+  button.disabled = true;
+  setFormMessage(message, "Saving your password…");
+  try {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    form.reset();
+    setFormMessage(message, "Password saved. You can use it the next time you sign in.", "success");
+  } catch (error) {
+    console.error("Could not save your password.", error);
+    setFormMessage(message, `Could not save password: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
   }
 });
 
@@ -807,7 +894,7 @@ document.querySelector("#email-form").addEventListener("submit", async (event) =
   const button = form.querySelector("button[type=submit]");
   const message = document.querySelector("#auth-message");
   button.disabled = true;
-  setFormMessage(message, "Sending your sign-in code…");
+  setFormMessage(message, "Sending your sign-in link…");
   try {
     const email = new FormData(form).get("email").trim();
     const { error } = await supabase.auth.signInWithOtp({
@@ -815,66 +902,66 @@ document.querySelector("#email-form").addEventListener("submit", async (event) =
       options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
     });
     if (error) throw error;
-    document.querySelector("#otp-recipient").textContent = `Enter the code sent to ${email}.`;
-    form.classList.add("hidden");
-    document.querySelector("#otp-form").classList.remove("hidden");
-    document.querySelector("#resend-code").classList.remove("hidden");
-    document.querySelector("#change-email").classList.remove("hidden");
-    document.querySelector("#otp-input").focus();
-    setFormMessage(message, "Check your inbox for your sign-in code.", "success");
+    setFormMessage(message, "Check your inbox for your one-time sign-in link.", "success");
   } catch (error) {
-    console.error("Could not send the sign-in code.", error);
-    setFormMessage(message, `Could not send the code: ${error.message}`, "error");
+    console.error("Could not send the sign-in link.", error);
+    setFormMessage(message, `Could not send the link: ${error.message}`, "error");
   } finally {
     button.disabled = false;
   }
 });
 
-document.querySelector("#otp-form").addEventListener("submit", async (event) => {
+document.querySelector("#password-recovery-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector("button[type=submit]");
   const message = document.querySelector("#auth-message");
-  const token = new FormData(form).get("token").trim();
+  const email = new FormData(form).get("email").trim();
   button.disabled = true;
-  setFormMessage(message, "Verifying your code…");
+  setFormMessage(message, "Sending your password reset link…");
   try {
-    const { error } = await supabase.auth.verifyOtp({
-      email: document.querySelector("#email-input").value.trim(),
-      token,
-      type: "email"
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}${window.location.pathname}`
     });
     if (error) throw error;
-    authDialog.close();
+    setFormMessage(message, "If an account exists for that email, a password reset link is on its way.", "success");
   } catch (error) {
-    console.error("Could not verify the sign-in code.", error);
-    setFormMessage(message, `Could not verify the code: ${error.message}`, "error");
+    console.error("Could not send the password reset link.", error);
+    setFormMessage(message, `Could not send the reset link: ${error.message}`, "error");
   } finally {
     button.disabled = false;
   }
 });
 
-document.querySelector("#resend-code").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
+document.querySelector("#password-reset-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
   const message = document.querySelector("#auth-message");
+  const values = new FormData(form);
+  const password = values.get("password");
+  if (password !== values.get("confirmPassword")) {
+    setFormMessage(message, "Those passwords don't match. Please try again.", "error");
+    return;
+  }
   button.disabled = true;
-  setFormMessage(message, "Sending a new code…");
+  setFormMessage(message, "Updating your password…");
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: document.querySelector("#email-input").value.trim(),
-      options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
-    });
+    const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
-    setFormMessage(message, "A new code was sent. Use the latest code only.", "success");
+    form.reset();
+    setFormMessage(message, "Your password has been updated. You can now sign in with it.", "success");
+    window.setTimeout(() => {
+      authDialog.close();
+      showPasswordLogin();
+    }, 1200);
   } catch (error) {
-    console.error("Could not resend the sign-in code.", error);
-    setFormMessage(message, `Could not resend the code: ${error.message}`, "error");
+    console.error("Could not update your password.", error);
+    setFormMessage(message, `Could not update password: ${error.message}`, "error");
   } finally {
     button.disabled = false;
   }
 });
-
-document.querySelector("#change-email").addEventListener("click", showEmailEntry);
 
 document.querySelector("#create-tab").addEventListener("click", () => setPairingTab("create"));
 document.querySelector("#join-tab").addEventListener("click", () => setPairingTab("join"));

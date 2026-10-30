@@ -223,21 +223,34 @@
     <dialog class="dialog" id="auth-dialog" aria-labelledby="auth-title">
       <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close">×</button></form>
       <p class="context-label">Keep your space in sync</p>
-      <h2 id="auth-title">Sign in with a code.</h2>
-      <p class="dialog-copy">We’ll email you a one-time code each time you sign in.</p>
-      <form id="email-form" class="dialog-form">
+      <h2 id="auth-title">Welcome back.</h2>
+      <p class="dialog-copy" id="auth-copy">Sign in with your email and password.</p>
+      <form id="password-login-form" class="dialog-form">
+        <label for="login-email">Email address</label>
+        <input id="login-email" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" name="password" autocomplete="current-password" required>
+        <button class="primary-button" type="submit">Sign in</button>
+      </form>
+      <button class="auth-switch-button" id="forgot-password" type="button">Forgot password?</button>
+      <button class="auth-switch-button" id="show-email-link" type="button">First time? Email me a sign-in link</button>
+      <form id="email-form" class="dialog-form hidden">
         <label for="email-input">Email address</label>
         <input id="email-input" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
-        <button class="primary-button" type="submit">Email me a code</button>
+        <button class="primary-button" type="submit">Email me a sign-in link</button>
       </form>
-      <form id="otp-form" class="dialog-form hidden">
-        <p class="otp-recipient" id="otp-recipient"></p>
-        <label for="otp-input">One-time code</label>
-        <input id="otp-input" type="text" name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" placeholder="Enter your code" required>
-        <button class="primary-button" type="submit">Verify code</button>
+      <form id="password-recovery-form" class="dialog-form hidden">
+        <label for="recovery-email">Email address</label>
+        <input id="recovery-email" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
+        <button class="primary-button" type="submit">Send password reset link</button>
       </form>
-      <button class="auth-switch-button hidden" id="resend-code" type="button">Send a new code</button>
-      <button class="auth-switch-button hidden" id="change-email" type="button">Use a different email</button>
+      <form id="password-reset-form" class="dialog-form hidden">
+        <label for="reset-password">New password</label>
+        <input id="reset-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        <label for="reset-password-confirm">Confirm new password</label>
+        <input id="reset-password-confirm" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        <button class="primary-button" type="submit">Save new password</button>
+      </form>
       <p class="form-message" id="auth-message" aria-live="polite"></p>
       <p class="privacy-note">Your couple space is private to its two members.</p>
     </dialog>
@@ -246,7 +259,14 @@
       <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close account settings">×</button></form>
       <p class="context-label">Your Tandem account</p>
       <h2 id="account-title">Account settings.</h2>
-      <p class="dialog-copy">You’re signed in with a one-time email code. You’ll need a new code the next time you sign in after signing out.</p>
+      <p class="dialog-copy">Set a password so you can sign in again without waiting for an email link.</p>
+      <form id="set-password-form" class="dialog-form">
+        <label for="new-password">New password</label>
+        <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+        <label for="confirm-password">Confirm password</label>
+        <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        <button class="primary-button" type="submit">Save password</button>
+      </form>
       <p class="form-message" id="account-message" aria-live="polite"></p>
       <button class="auth-switch-button sign-out-button" id="sign-out-button" type="button">Sign out</button>
     </dialog>
