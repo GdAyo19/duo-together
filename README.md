@@ -42,7 +42,8 @@ The GitHub Pages site is static, so shared accounts and progress use a separate 
    For a safe rollout, apply and verify migrations against a separate staging project before production. Add future schema changes as new timestamped migrations; do not edit migrations already applied to a project.
 4. In **Authentication → URL Configuration**, set the site URL to `https://gdayo19.github.io/duo-together/` and add that URL to the redirect allow list. Add the Vite local URL (usually `http://localhost:5173/`) too if testing locally.
 5. Copy the project URL and its **publishable** (or legacy `anon`) key into `config.js`. These browser values are public; never put a `service_role` or secret key in this repository.
-6. In **Authentication → Providers**, enable email sign-in. A new user can sign in once with an email link, then open **Account** to set a password. After that, they can sign in with email and password without requesting a new link each time. One person can create a space and share its invite code with the other.
+6. In **Authentication → Providers**, enable email sign-in. Supabase’s built-in email service is tightly rate-limited (currently 2 emails per hour per project) and does not allow custom email templates on the free tier. Configure a custom SMTP provider under **Authentication → SMTP Settings** before using code sign-in regularly.
+7. After custom SMTP is active, open **Authentication → Email Templates → Magic Link** and use the subject and HTML from [`supabase/templates/magic_link.html`](supabase/templates/magic_link.html); the template must include `{{ .Token }}` so Supabase sends a code instead of a clickable link. The local Supabase CLI config already points to this template.
 
 Until Supabase is configured, the site works in preview mode and stores practice and saved phrases only in that browser. It does not sync across devices. The app only grants access to the two accounts joined to the same invite-only space.
 
