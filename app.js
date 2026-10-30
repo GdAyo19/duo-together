@@ -1036,6 +1036,12 @@ document.querySelector("#create-space-form").addEventListener("submit", async (e
   button.disabled = true;
   setFormMessage(document.querySelector("#pairing-message"), "Creating your shared space…");
   try {
+    const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!verifiedUser || verifiedUser.id !== authUser?.id) {
+      throw new Error("Your sign-in session doesn't match an account in this Supabase project. Sign out and sign in again, then retry.");
+    }
+
     const { data, error } = await supabase.rpc("create_couple", {
       p_name: values.get("coupleName"),
       p_display_name: values.get("displayName"),
@@ -1047,7 +1053,10 @@ document.querySelector("#create-space-form").addEventListener("submit", async (e
     showToast("Your shared space is ready. Send your person the invite code.");
   } catch (error) {
     console.error("Could not create the shared space.", error);
-    setFormMessage(document.querySelector("#pairing-message"), error.message, "error");
+    const message = error.code === "23503" && error.message.includes("couples_created_by_fkey")
+      ? "Your account couldn't be matched to a user in this Supabase project. Sign out and sign in again. If it continues, confirm config.js points to the intended Supabase project."
+      : error.message;
+    setFormMessage(document.querySelector("#pairing-message"), message, "error");
   } finally {
     button.disabled = false;
   }
