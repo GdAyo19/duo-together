@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { languagePacks } from "./src/domain/languages";
 import { getSharedStreak, summarizePractice } from "./src/domain/progress";
+import { AVATAR_BUCKET, avatarPathFor, validateAvatarFile, validateNickname } from "./src/domain/profile";
+import { shouldSignOut } from "./src/domain/idle";
+import { createCallSession } from "./src/call";
 
 const localKey = "tandem-shared-space-v1";
 const phrasePageSize = 30;
@@ -38,6 +41,9 @@ let sharedChannel = null;
 let sharedChannelCoupleId = null;
 let realtimeRefreshTimer;
 let toastTimer;
+let callSession = null;
+let idleTimer = null;
+let lastActivityAt = 0;
 
 function readLocalState() {
   const fallback = {
@@ -170,7 +176,19 @@ function renderProfile() {
   const parsedJoinedAt = joinedAt ? Date.parse(joinedAt) : Number.NaN;
   const passwordSet = authUser?.user_metadata?.tandem_password_set === true;
 
-  document.querySelector("#profile-avatar").textContent = getProfileInitials(displayName);
+  const avatarImage = document.querySelector("#profile-avatar-image");
+  const avatarInitial = document.querySelector("#profile-avatar-initial");
+  if (member?.avatar_url) {
+    avatarImage.src = member.avatar_url;
+    avatarImage.classList.remove("hidden");
+    avatarInitial.classList.add("hidden");
+  } else {
+    avatarImage.removeAttribute("src");
+    avatarImage.classList.add("hidden");
+    avatarInitial.classList.remove("hidden");
+    avatarInitial.textContent = getProfileInitials(displayName);
+  }
+  document.querySelector("#nickname-input").value = member?.display_name || displayName;
   document.querySelector("#profile-name").textContent = displayName;
   document.querySelector("#profile-email").textContent = email;
   document.querySelector("#profile-email-detail").textContent = email;
@@ -196,6 +214,7 @@ function getPeople() {
     const linked = members.slice(0, 2).map((member) => ({
       id: member.user_id,
       name: member.display_name,
+      avatarUrl: member.avatar_url || "",
       pending: false
     }));
     if (linked.length < 2) linked.push({ id: null, name: "Your person", pending: true });
@@ -224,7 +243,18 @@ function renderLane(container, people, rows, day) {
 
     const avatar = document.createElement("span");
     avatar.className = `lane-avatar ${index === 0 ? "okomi-avatar" : "ifemi-avatar"}`;
-    avatar.textContent = person.pending ? "·" : person.name.slice(0, 1).toUpperCase();
+    if (person.pending) {
+      avatar.textContent = "·";
+    } else if (person.avatarUrl) {
+      const photo = document.createElement("img");
+      photo.src = person.avatarUrl;
+      photo.alt = "";
+      photo.loading = "lazy";
+      photo.decoding = "async";
+      avatar.append(photo);
+    } else {
+      avatar.textContent = person.name.slice(0, 1).toUpperCase();
+    }
     avatar.setAttribute("aria-hidden", "true");
 
     const name = document.createElement("span");
@@ -553,6 +583,157 @@ function startChallenge() {
   quizResult.classList.add("hidden");
   renderQuestion();
   dialog.showModal();
+  startCall();
+}
+
+function callElements() {
+  return {
+    panel: document.querySelector("#call-panel"),
+    partnerVideo: document.querySelector("#partner-video"),
+    localVideo: document.querySelector("#local-video"),
+    placeholder: document.querySelector("#call-placeholder"),
+    partnerLabel: document.querySelector("#partner-name-label"),
+    status: document.querySelector("#call-status"),
+    mute: document.querySelector("#call-mute"),
+    video: document.querySelector("#call-video"),
+    end: document.querySelector("#call-end")
+  };
+}
+
+function setCallStatus(message) {
+  callElements().status.textContent = message;
+}
+
+function startCall() {
+  if (callSession) return;
+  const elements = callElements();
+  const partner = members.find((member) => member.user_id !== authUser?.id);
+  elements.partnerLabel.textContent = partner?.display_name || "Your person";
+  elements.placeholder.classList.remove("hidden");
+  elements.partnerVideo.classList.add("hidden");
+  elements.mute.setAttribute("aria-pressed", "false");
+  elements.video.setAttribute("aria-pressed", "false");
+  elements.mute.textContent = "Mute";
+  elements.video.textContent = "Camera off";
+
+  if (!supabase || !couple || !authUser) {
+    elements.panel.classList.add("hidden");
+    return;
+  }
+
+  elements.panel.classList.remove("hidden");
+  const turn = window.TANDEM_CONFIG?.turn;
+  const partnerJoined = members.some((member) => member.user_id !== authUser.id);
+  setCallStatus(partnerJoined
+    ? (turn?.urls ? "Connecting your call…" : "Connecting with a direct link — no relay configured.")
+    : "Your call starts when your person opens a challenge.");
+
+  callSession = createCallSession({
+    supabase,
+    coupleId: couple.id,
+    userId: authUser.id,
+    turn,
+    onEvent: (event, detail) => handleCallEvent(event, detail)
+  });
+  callSession.start();
+}
+
+function handleCallEvent(event, detail) {
+  const elements = callElements();
+  if (event === "local-stream") {
+    elements.localVideo.srcObject = detail.stream;
+    return;
+  }
+  if (event === "remote-stream") {
+    elements.partnerVideo.srcObject = detail.stream;
+    elements.partnerVideo.classList.remove("hidden");
+    elements.partnerVideo.play().catch(() => {});
+    elements.placeholder.classList.add("hidden");
+    return;
+  }
+  if (event === "calling") {
+    setCallStatus("Calling your person…");
+    return;
+  }
+  if (event === "connecting") {
+    setCallStatus("Connecting…");
+    return;
+  }
+  if (event === "connected") {
+    setCallStatus("You're together.");
+    return;
+  }
+  if (event === "partner-left") {
+    endCall({ notifyPartner: false });
+    return;
+  }
+  if (event === "failed") {
+    setCallStatus(detail?.reason || "The call could not connect.");
+    elements.panel.classList.remove("hidden");
+    return;
+  }
+  if (event === "disconnected") {
+    setCallStatus("The call dropped. You can keep learning.");
+    return;
+  }
+  if (event === "ended") {
+    elements.localVideo.srcObject = null;
+    elements.partnerVideo.srcObject = null;
+    elements.partnerVideo.classList.add("hidden");
+    elements.placeholder.classList.remove("hidden");
+    setCallStatus("Call ended.");
+  }
+}
+
+function endCall({ notifyPartner = true } = {}) {
+  if (!callSession) return;
+  const session = callSession;
+  callSession = null;
+  session.hangUp({ notifyPartner });
+}
+
+const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll", "focus"];
+
+function markActivity() {
+  lastActivityAt = Date.now();
+}
+
+function startIdleSignOut() {
+  if (idleTimer) return;
+  markActivity();
+  activityEvents.forEach((name) => {
+    window.addEventListener(name, markActivity, { passive: true, capture: true });
+  });
+  document.removeEventListener("visibilitychange", markActivity);
+  document.addEventListener("visibilitychange", markActivity);
+  idleTimer = window.setInterval(checkIdle, 60 * 1000);
+}
+
+function stopIdleSignOut() {
+  activityEvents.forEach((name) => {
+    window.removeEventListener(name, markActivity, { passive: true, capture: true });
+  });
+  document.removeEventListener("visibilitychange", markActivity);
+  if (idleTimer) window.clearInterval(idleTimer);
+  idleTimer = null;
+  lastActivityAt = 0;
+}
+
+function checkIdle() {
+  if (!authUser || !supabase) return;
+  if (callSession) {
+    markActivity();
+    return;
+  }
+  if (!shouldSignOut(lastActivityAt, Date.now())) return;
+  stopIdleSignOut();
+  endCall();
+  document.querySelector("#account-dialog").close();
+  dialog.close();
+  showToast("You were signed out after 60 minutes of inactivity.");
+  supabase.auth.signOut().catch((error) => {
+    console.error("Could not sign out after inactivity.", error);
+  });
 }
 
 function stopSharedUpdates() {
@@ -615,7 +796,8 @@ async function loadSharedSpace(user) {
     { data: phraseData, error: phraseError, count: phraseCount }
   ] = await Promise.all([
     supabase.from("couples").select("id, name, language, invite_code").eq("id", membership.couple_id).single(),
-    supabase.from("couple_members").select("user_id, display_name, joined_at").eq("couple_id", membership.couple_id).order("joined_at"),
+    supabase    .from("couple_members")
+    .select("user_id, display_name, avatar_url, joined_at").eq("couple_id", membership.couple_id).order("joined_at"),
     supabase.rpc("get_couple_progress", { p_couple_id: membership.couple_id }),
     supabase.from("saved_phrases").select("id, language, phrase, translation, created_at", { count: "exact" })
       .eq("couple_id", membership.couple_id)
@@ -654,6 +836,8 @@ async function handleSession(session) {
   authUser = session?.user || null;
   if (!authUser) {
     sessionToken += 1;
+    endCall();
+    stopIdleSignOut();
     stopSharedUpdates();
     couple = null;
     members = [];
@@ -661,11 +845,14 @@ async function handleSession(session) {
     savedPhrases = [];
     savedPhrasesTotal = 0;
     sharedProgress = null;
+    document.querySelector("#account-dialog").close();
+    dialog.close();
     showAppViews();
     render();
     return;
   }
 
+  startIdleSignOut();
   document.querySelector("#account-button").textContent = "Signing in…";
   try {
     await loadSharedSpace(authUser);
@@ -908,6 +1095,123 @@ document.querySelector("#account-button").addEventListener("click", () => {
 document.querySelector("#account-dialog").addEventListener("close", () => {
   setPasswordSettingsOpen(false);
   document.querySelector("#set-password-form").reset();
+  document.querySelector("#avatar-status").textContent = "";
+});
+
+function setAvatarStatus(message, kind = "") {
+  const status = document.querySelector("#avatar-status");
+  status.textContent = message;
+  status.classList.toggle("error", kind === "error");
+  status.classList.toggle("success", kind === "success");
+}
+
+async function refreshMyProfile() {
+  await loadSharedSpace(authUser);
+  render();
+  renderProfile();
+}
+
+document.querySelector("#avatar-change").addEventListener("click", () => {
+  document.querySelector("#avatar-input").click();
+});
+
+document.querySelector("#avatar-input").addEventListener("change", async (event) => {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const check = validateAvatarFile(file);
+  if (!check.ok) {
+    setAvatarStatus(check.message, "error");
+    input.value = "";
+    return;
+  }
+  if (!supabase || !authUser) {
+    setAvatarStatus("Sign in with cloud sync to change your photo.", "error");
+    input.value = "";
+    return;
+  }
+
+  const button = document.querySelector("#avatar-change");
+  button.disabled = true;
+  setAvatarStatus("Uploading your photo…");
+  try {
+    const path = avatarPathFor(authUser.id, file.name, file.type, Date.now());
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+    const { error: saveError } = await supabase.rpc("update_my_profile", {
+      p_display_name: getProfileMember()?.display_name || getProfileDisplayName(),
+      p_avatar_url: publicUrl
+    });
+    if (saveError) throw saveError;
+
+    await refreshMyProfile();
+    setAvatarStatus("Photo updated.", "success");
+  } catch (error) {
+    console.error("Could not update your profile photo.", error);
+    setAvatarStatus(`Could not update your photo: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    input.value = "";
+  }
+});
+
+document.querySelector("#nickname-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = document.querySelector("#nickname-save");
+  const result = validateNickname(new FormData(form).get("nickname"));
+  if (!result.ok) {
+    setAvatarStatus(result.message, "error");
+    return;
+  }
+  if (!supabase || !authUser) {
+    setAvatarStatus("Sign in with cloud sync to change your nickname.", "error");
+    return;
+  }
+
+  button.disabled = true;
+  setAvatarStatus("Saving your nickname…");
+  try {
+    const { error } = await supabase.rpc("update_my_profile", {
+      p_display_name: result.value,
+      p_avatar_url: getProfileMember()?.avatar_url || null
+    });
+    if (error) throw error;
+    await refreshMyProfile();
+    setAvatarStatus("Nickname saved.", "success");
+  } catch (error) {
+    console.error("Could not update your nickname.", error);
+    setAvatarStatus(`Could not update your nickname: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#challenge-dialog").addEventListener("close", () => {
+  endCall();
+});
+
+document.querySelector("#call-end").addEventListener("click", () => {
+  endCall();
+});
+
+document.querySelector("#call-mute").addEventListener("click", (event) => {
+  const pressed = event.currentTarget.getAttribute("aria-pressed") === "true";
+  const muted = callSession?.setMuted(!pressed) ?? !pressed;
+  event.currentTarget.setAttribute("aria-pressed", String(muted));
+  event.currentTarget.textContent = muted ? "Unmute" : "Mute";
+});
+
+document.querySelector("#call-video").addEventListener("click", (event) => {
+  const pressed = event.currentTarget.getAttribute("aria-pressed") === "true";
+  const off = callSession?.setVideoOff(!pressed) ?? !pressed;
+  event.currentTarget.setAttribute("aria-pressed", String(off));
+  event.currentTarget.textContent = off ? "Camera on" : "Camera off";
 });
 
 function setPasswordSettingsOpen(open) {

@@ -200,7 +200,8 @@ h1, h2, p { margin-top: 0; }
 .practice-caption { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 13px 0 17px; }
 .practice-lanes { display: grid; gap: 14px; }
 .practice-lane { align-items: center; display: grid; gap: 8px; grid-template-columns: 28px 55px minmax(20px, 1fr) 33px; min-width: 0; }
-.lane-avatar { align-items: center; border-radius: 50%; display: inline-flex; font-size: 11px; font-weight: 600; height: 28px; justify-content: center; width: 28px; }
+.lane-avatar { align-items: center; border-radius: 50%; display: inline-flex; font-size: 11px; font-weight: 600; height: 28px; justify-content: center; overflow: hidden; width: 28px; }
+.lane-avatar img { height: 100%; object-fit: cover; width: 100%; }
 .lane-name { color: var(--ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane-track { background: var(--track); border-radius: 99px; height: 5px; overflow: hidden; }
 .lane-fill { background: var(--accent); border-radius: 99px; display: block; height: 100%; transition: width .25s ease; }
@@ -315,7 +316,22 @@ h1, h2, p { margin-top: 0; }
 .profile-dialog { max-height: min(88dvh, 780px); overflow: hidden; padding: 0; width: min(540px, calc(100vw - 28px)); }
 .profile-content { max-height: calc(min(88dvh, 780px) - 2px); overflow-y: auto; overscroll-behavior: contain; padding: 28px 30px 24px; }
 .profile-identity { align-items: center; display: flex; gap: 16px; margin: 19px 0 25px; padding-right: 20px; }
-.profile-avatar { align-items: center; background: var(--avatar-ifemi); border: 1px solid var(--border); border-radius: 50%; color: var(--avatar-ifemi-ink); display: flex; flex: 0 0 58px; font-family: var(--font-greeting); font-size: 25px; height: 58px; justify-content: center; }
+.profile-avatar { align-items: center; background: var(--avatar-ifemi); border: 1px solid var(--border); border-radius: 50%; color: var(--avatar-ifemi-ink); cursor: pointer; display: flex; flex: 0 0 58px; font-family: var(--font-greeting); font-size: 25px; height: 58px; justify-content: center; overflow: hidden; padding: 0; position: relative; }
+.profile-avatar:hover, .profile-avatar:focus-visible { border-color: var(--accent); }
+.profile-avatar:disabled { cursor: progress; opacity: .7; }
+.profile-avatar img { height: 100%; object-fit: cover; width: 100%; }
+.profile-avatar-edit { align-items: center; background: #14251dcc; color: #fff; display: flex; font-family: var(--font); font-size: 10px; font-weight: 500; inset: 0; justify-content: center; opacity: 0; position: absolute; transition: opacity 160ms var(--ease-out); }
+.profile-avatar:hover .profile-avatar-edit, .profile-avatar:focus-visible .profile-avatar-edit { opacity: 1; }
+.avatar-status:empty { display: none; }
+.avatar-status { margin: -16px 0 18px; }
+.avatar-status.error { color: var(--negative); }
+.avatar-status.success { color: var(--positive); }
+.nickname-form { display: grid; gap: 7px; margin-bottom: 14px; }
+.nickname-form > label { color: var(--muted); font-size: 12px; }
+.nickname-row { display: flex; gap: 8px; }
+.nickname-row input { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--ink); flex: 1 1 auto; font: inherit; font-size: 13px; min-height: 38px; min-width: 0; padding: 0 12px; }
+.nickname-row input:focus { border-color: var(--accent); outline: none; }
+.nickname-row .outline-button { flex: 0 0 auto; }
 .profile-identity-copy { min-width: 0; }
 .profile-identity-copy h2 { font-size: 28px; }
 .profile-identity-copy > p { margin: 4px 0 0; }
@@ -358,6 +374,24 @@ h1, h2, p { margin-top: 0; }
 .language-option.selected .option-check { display: block; }
 
 .challenge-dialog { padding-bottom: 28px; }
+.challenge-dialog:has(.call-panel:not(.hidden)) { width: min(880px, calc(100vw - 28px)); }
+.challenge-columns { display: block; }
+.challenge-dialog:has(.call-panel:not(.hidden)) .challenge-columns { align-items: start; display: grid; gap: 26px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.call-panel { display: grid; gap: 10px; }
+.call-stage { aspect-ratio: 4 / 3; background: #14251d; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; }
+.call-stage video { height: 100%; object-fit: cover; width: 100%; }
+#partner-video { display: block; }
+#local-video { border: 2px solid #ffffffcc; border-radius: 10px; bottom: 10px; height: 30%; object-fit: cover; position: absolute; right: 10px; width: 30%; }
+.call-placeholder { align-items: center; background: #14251d; color: #ffffffb3; display: flex; flex-direction: column; gap: 6px; inset: 0; justify-content: center; position: absolute; }
+.call-placeholder-mark { color: #73cbb3; font-size: 30px; }
+.call-placeholder p { font-family: var(--font-greeting); font-size: 19px; margin: 0; }
+.call-status { color: var(--muted); font-size: 12px; margin: 0; }
+.call-controls { display: grid; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.call-button { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--ink); cursor: pointer; font: inherit; font-size: 12px; min-height: 36px; padding: 0 8px; }
+.call-button:hover { border-color: var(--control); }
+.call-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--primary-ink); }
+.call-button-end { border-color: var(--negative-border); color: var(--negative); }
+.call-button-end:hover { background: var(--negative-surface); }
 .quiz-topline { align-items: center; display: flex; justify-content: space-between; }
 .quiz-topline .context-label { margin: 0; }
 .quiz-topline > span:last-child { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -477,6 +511,8 @@ h1, h2, p { margin-top: 0; }
   .profile-identity { gap: 12px; }
   .profile-avatar { flex-basis: 50px; font-size: 22px; height: 50px; }
   .profile-identity-copy h2 { font-size: 25px; }
+  .challenge-dialog:has(.call-panel:not(.hidden)) .challenge-columns { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .call-stage { aspect-ratio: 16 / 10; }
 }
 
 @media (prefers-reduced-motion: reduce) {

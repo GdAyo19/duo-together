@@ -300,19 +300,32 @@
       <div class="profile-content">
         <p class="context-label">YOUR TANDEM ACCOUNT</p>
         <header class="profile-identity">
-          <div class="profile-avatar" id="profile-avatar" aria-hidden="true">T</div>
+          <button class="profile-avatar" id="avatar-change" type="button" aria-label="Change profile photo" aria-controls="avatar-input">
+            <span id="profile-avatar-initial" aria-hidden="true">T</span>
+            <img id="profile-avatar-image" class="hidden" alt="" width="58" height="58">
+            <span class="profile-avatar-edit" aria-hidden="true">Edit</span>
+          </button>
           <div class="profile-identity-copy">
             <h2 id="account-title">Your profile.</h2>
             <p id="profile-name">Tandem member</p>
             <p class="profile-email" id="profile-email"></p>
           </div>
         </header>
+        <input class="hidden" id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp">
+        <p class="profile-space-detail avatar-status" id="avatar-status" aria-live="polite"></p>
 
         <section class="profile-section" aria-labelledby="profile-details-title">
           <div class="profile-section-heading">
             <div><p class="context-label">YOUR DETAILS</p><h3 id="profile-details-title">Account information</h3></div>
             <span class="profile-status"><span aria-hidden="true">●</span> Signed in</span>
           </div>
+          <form class="nickname-form" id="nickname-form">
+            <label for="nickname-input">Nickname</label>
+            <div class="nickname-row">
+              <input id="nickname-input" type="text" name="nickname" maxlength="32" autocomplete="nickname" placeholder="How your partner sees you">
+              <button class="outline-button" id="nickname-save" type="submit">Save</button>
+            </div>
+          </form>
           <dl class="profile-details">
             <div><dt>Email</dt><dd id="profile-email-detail"></dd></div>
             <div><dt>Member since</dt><dd id="profile-joined"></dd></div>
@@ -383,22 +396,40 @@
 
     <dialog class="dialog challenge-dialog" id="challenge-dialog" aria-labelledby="dialog-title">
       <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close challenge">×</button></form>
-      <div class="quiz-content" id="quiz-content">
-        <div class="quiz-topline"><span class="context-label">Your little challenge</span><span id="question-number">1 / 3</span></div>
-        <div class="quiz-progress"><span id="quiz-progress-bar"></span></div>
-        <p class="quiz-prompt" id="quiz-prompt">How do you say this in French?</p>
-        <h2 id="dialog-title" class="quiz-question">I miss you</h2>
-        <p class="quiz-hint">Pick an answer together — no pressure, just fun.</p>
-        <div class="answer-list" id="answer-list"></div>
-        <p class="answer-feedback" id="answer-feedback" aria-live="polite"></p>
-        <button class="primary-button quiz-next" id="quiz-next" type="button" disabled>Choose an answer</button>
-      </div>
-      <div class="quiz-result hidden" id="quiz-result">
-        <p class="context-label">Date complete</p>
-        <h2>Look at you two.</h2>
-        <p>You learned something new and made time for each other. That's a lovely little win.</p>
-        <div class="result-points"><strong>+3 phrases</strong> added to your shared practice</div>
-        <button class="primary-button" id="finish-challenge" type="button">Back to your space</button>
+      <div class="challenge-columns">
+        <section class="call-panel" id="call-panel" aria-label="Video call">
+          <div class="call-stage">
+            <video id="partner-video" autoplay playsinline></video>
+            <div class="call-placeholder" id="call-placeholder">
+              <span class="call-placeholder-mark" aria-hidden="true">◍</span>
+              <p id="partner-name-label">Your person</p>
+            </div>
+            <video id="local-video" autoplay playsinline muted></video>
+          </div>
+          <p class="call-status" id="call-status" aria-live="polite">Connecting your call…</p>
+          <div class="call-controls">
+            <button class="call-button" id="call-mute" type="button" aria-pressed="false">Mute</button>
+            <button class="call-button" id="call-video" type="button" aria-pressed="false">Camera off</button>
+            <button class="call-button call-button-end" id="call-end" type="button">End call</button>
+          </div>
+        </section>
+        <div class="quiz-content" id="quiz-content">
+          <div class="quiz-topline"><span class="context-label">Your little challenge</span><span id="question-number">1 / 3</span></div>
+          <div class="quiz-progress"><span id="quiz-progress-bar"></span></div>
+          <p class="quiz-prompt" id="quiz-prompt">How do you say this in French?</p>
+          <h2 id="dialog-title" class="quiz-question">I miss you</h2>
+          <p class="quiz-hint">Pick an answer together — no pressure, just fun.</p>
+          <div class="answer-list" id="answer-list"></div>
+          <p class="answer-feedback" id="answer-feedback" aria-live="polite"></p>
+          <button class="primary-button quiz-next" id="quiz-next" type="button" disabled>Choose an answer</button>
+        </div>
+        <div class="quiz-result hidden" id="quiz-result">
+          <p class="context-label">Date complete</p>
+          <h2>Look at you two.</h2>
+          <p>You learned something new and made time for each other. That's a lovely little win.</p>
+          <div class="result-points"><strong>+3 phrases</strong> added to your shared practice</div>
+          <button class="primary-button" id="finish-challenge" type="button">Back to your space</button>
+        </div>
       </div>
     </dialog>
 
