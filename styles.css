@@ -312,6 +312,42 @@ h1, h2, p { margin-top: 0; }
 .auth-back-button { margin: -5px 0 13px; }
 .sign-out-button { border-top: 1px solid var(--rule); color: var(--muted); margin-top: 18px; padding-top: 14px; width: 100%; }
 .privacy-note { border-top: 1px solid var(--rule); color: var(--muted); font-size: 12px; margin: 18px 0 0; padding-top: 13px; }
+.profile-dialog { max-height: min(88dvh, 780px); overflow: hidden; padding: 0; width: min(540px, calc(100vw - 28px)); }
+.profile-content { max-height: calc(min(88dvh, 780px) - 2px); overflow-y: auto; overscroll-behavior: contain; padding: 28px 30px 24px; }
+.profile-identity { align-items: center; display: flex; gap: 16px; margin: 19px 0 25px; padding-right: 20px; }
+.profile-avatar { align-items: center; background: var(--avatar-ifemi); border: 1px solid var(--border); border-radius: 50%; color: var(--avatar-ifemi-ink); display: flex; flex: 0 0 58px; font-family: var(--font-greeting); font-size: 25px; height: 58px; justify-content: center; }
+.profile-identity-copy { min-width: 0; }
+.profile-identity-copy h2 { font-size: 28px; }
+.profile-identity-copy > p { margin: 4px 0 0; }
+.profile-email { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.profile-section { border-top: 1px solid var(--rule); margin-top: 19px; padding-top: 18px; }
+.profile-section-heading { align-items: center; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 12px; }
+.profile-section-heading .context-label { font-size: 10px; letter-spacing: .1em; margin: 0 0 5px; }
+.profile-section-heading h3 { color: var(--ink); font-size: 14px; font-weight: 600; margin: 0; }
+.profile-status { align-items: center; color: var(--positive); display: inline-flex; flex: 0 0 auto; font-size: 11px; gap: 6px; }
+.profile-status span { font-size: 9px; }
+.profile-details { display: grid; gap: 8px; margin: 0; }
+.profile-details > div { align-items: baseline; display: flex; gap: 20px; justify-content: space-between; }
+.profile-details dt, .profile-details dd { font-size: 12px; line-height: 1.5; margin: 0; }
+.profile-details dt { color: var(--muted); }
+.profile-details dd { color: var(--ink); overflow-wrap: anywhere; text-align: right; }
+.profile-space-name { color: var(--ink); font-family: var(--font-greeting); font-size: 20px; margin: 0 0 4px; }
+.profile-space-detail { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 0 0 13px; }
+.profile-stats { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 13px 0; }
+.profile-stats > div { display: grid; gap: 4px; padding: 12px 14px; }
+.profile-stats > div + div { border-left: 1px solid var(--border); }
+.profile-stats strong { color: var(--ink); font-family: var(--font-greeting); font-size: 23px; font-weight: 400; }
+.profile-stats span { color: var(--muted); font-size: 11px; }
+.profile-dialog .outline-button { min-height: 38px; padding: 0 13px; }
+.profile-security > .profile-space-detail { margin-bottom: 10px; }
+.password-settings { margin-top: 14px; }
+.profile-support { display: grid; gap: 0; }
+.profile-support .profile-section-heading { margin-bottom: 5px; }
+.profile-support > a { align-items: center; border-top: 1px solid var(--rule); color: var(--muted); display: flex; font-size: 12px; justify-content: space-between; min-height: 39px; }
+.profile-support > a:hover { color: var(--accent); }
+.profile-support > a span { color: var(--accent); font-size: 14px; }
+.profile-dialog .form-message { margin: 10px 0 0; }
+.profile-dialog .sign-out-button { margin-top: 14px; min-height: 42px; }
 .language-dialog .language-options { display: grid; gap: 8px; }
 .language-option { align-items: center; background: var(--raised); border: 1px solid var(--border); border-radius: 12px; display: grid; gap: 0 11px; grid-template-columns: 40px 1fr 20px; min-height: 60px; padding: 9px 12px; text-align: left; }
 .language-option:hover, .language-option.selected { background: var(--surface); border-color: var(--control); }
@@ -436,6 +472,11 @@ h1, h2, p { margin-top: 0; }
   .pairing-form input, .pairing-form select, .dialog-form input { min-height: 44px; }
   .dialog { padding-left: 22px; padding-right: 22px; }
   .dialog h2 { font-size: 27px; }
+  .profile-dialog { max-height: calc(100dvh - 20px); }
+  .profile-content { max-height: calc(100dvh - 22px); padding: 27px 20px 19px; }
+  .profile-identity { gap: 12px; }
+  .profile-avatar { flex-basis: 50px; font-size: 22px; height: 50px; }
+  .profile-identity-copy h2 { font-size: 25px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

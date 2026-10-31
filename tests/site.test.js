@@ -43,4 +43,16 @@ describe("public site metadata", () => {
       expect(() => readFileSync(new URL(asset, root))).not.toThrow();
     }
   });
+
+  it("opens account controls as a profile with password setup initially closed", () => {
+    const html = readFileSync(new URL("index.html", root), "utf8");
+
+    expect(html).toContain('class="dialog profile-dialog" id="account-dialog"');
+    expect(html).toContain('id="profile-email-detail"');
+    expect(html).toContain('id="profile-space-title"');
+    expect(html).toContain('id="profile-support-title"');
+    expect(html).toContain('class="password-settings hidden" id="password-settings"');
+    expect(html).toContain('href="https://github.com/GdAyo19/duo-together/issues/new"');
+    expect(html).toContain('href="https://github.com/GdAyo19"');
+  });
 });

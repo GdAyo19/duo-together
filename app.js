@@ -143,6 +143,54 @@ function getCurrentLanguage() {
   return languagePacks[activeLanguage];
 }
 
+function getProfileMember() {
+  return members.find((member) => member.user_id === authUser?.id);
+}
+
+function getProfileDisplayName() {
+  const metadata = authUser?.user_metadata || {};
+  return getProfileMember()?.display_name
+    || metadata.display_name
+    || metadata.full_name
+    || metadata.name
+    || authUser?.email?.split("@")[0]
+    || "Tandem member";
+}
+
+function getProfileInitials(name) {
+  return name.trim().split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0].toLocaleUpperCase()).join("") || "T";
+}
+
+function renderProfile() {
+  const displayName = getProfileDisplayName();
+  const email = authUser?.email || "Email unavailable";
+  const member = getProfileMember();
+  const partner = members.find((item) => item.user_id !== authUser?.id);
+  const joinedAt = member?.joined_at || authUser?.created_at;
+  const parsedJoinedAt = joinedAt ? Date.parse(joinedAt) : Number.NaN;
+  const passwordSet = authUser?.user_metadata?.tandem_password_set === true;
+
+  document.querySelector("#profile-avatar").textContent = getProfileInitials(displayName);
+  document.querySelector("#profile-name").textContent = displayName;
+  document.querySelector("#profile-email").textContent = email;
+  document.querySelector("#profile-email-detail").textContent = email;
+  document.querySelector("#profile-joined").textContent = Number.isNaN(parsedJoinedAt)
+    ? "Recently"
+    : new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(new Date(parsedJoinedAt));
+  document.querySelector("#profile-space-name").textContent = couple?.name || "Your shared space is waiting";
+  document.querySelector("#profile-space-detail").textContent = couple
+    ? `${getCurrentLanguage().name}${partner ? ` · Learning with ${partner.display_name}` : " · Invite your person to join"}`
+    : "Create a private space and invite your person to start learning together.";
+  document.querySelector("#profile-streak").textContent = new Intl.NumberFormat().format(sharedProgress?.streak || 0);
+  const phraseCount = couple ? savedPhrasesTotal : localState.savedPhrases.length;
+  document.querySelector("#profile-phrases").textContent = new Intl.NumberFormat().format(phraseCount);
+  document.querySelector("#profile-create-space").classList.toggle("hidden", Boolean(couple));
+  document.querySelector("#password-settings-toggle").textContent = passwordSet ? "Change password" : "Password settings";
+  document.querySelector("#password-status").textContent = passwordSet
+    ? "Password sign-in is ready. You can update your password here anytime."
+    : "Your password options are here whenever you need to add or update one.";
+}
+
 function getPeople() {
   if (couple) {
     const linked = members.slice(0, 2).map((member) => ({
@@ -397,10 +445,10 @@ function render() {
 
   if (couple) {
     setSyncStatus("online", "Shared with your person");
-    document.querySelector("#account-button").textContent = "Account";
+    document.querySelector("#account-button").textContent = "My profile";
   } else {
     setSyncStatus("", "Saved on this device");
-    document.querySelector("#account-button").textContent = authUser ? "Account" : supabase ? "Sign in to sync" : "Cloud sync not set up";
+    document.querySelector("#account-button").textContent = authUser ? "My profile" : supabase ? "Sign in to sync" : "Cloud sync not set up";
   }
 }
 
@@ -555,7 +603,7 @@ async function loadSharedSpace(user) {
     savedPhrasesTotal = 0;
     sharedProgress = null;
     setSyncStatus("online", "Signed in · set up your space");
-    document.querySelector("#account-button").textContent = "Account";
+    document.querySelector("#account-button").textContent = "My profile";
     showPairingScreen();
     return;
   }
@@ -846,12 +894,41 @@ document.querySelector("#account-button").addEventListener("click", () => {
     return;
   }
   if (authUser) {
+    const accountDialog = document.querySelector("#account-dialog");
+    setPasswordSettingsOpen(false);
     document.querySelector("#account-message").textContent = "";
-    document.querySelector("#account-dialog").showModal();
+    renderProfile();
+    accountDialog.showModal();
   } else {
     showPasswordLogin();
     authDialog.showModal();
   }
+});
+
+document.querySelector("#account-dialog").addEventListener("close", () => {
+  setPasswordSettingsOpen(false);
+  document.querySelector("#set-password-form").reset();
+});
+
+function setPasswordSettingsOpen(open) {
+  const button = document.querySelector("#password-settings-toggle");
+  document.querySelector("#password-settings").classList.toggle("hidden", !open);
+  button.setAttribute("aria-expanded", String(open));
+  button.textContent = open
+    ? "Cancel password changes"
+    : authUser?.user_metadata?.tandem_password_set === true ? "Change password" : "Password settings";
+  if (open) document.querySelector("#new-password").focus();
+}
+
+document.querySelector("#password-settings-toggle").addEventListener("click", (event) => {
+  const open = event.currentTarget.getAttribute("aria-expanded") !== "true";
+  setPasswordSettingsOpen(open);
+});
+
+document.querySelector("#profile-create-space").addEventListener("click", () => {
+  document.querySelector("#account-dialog").close();
+  setPairingTab("create");
+  showPairingScreen();
 });
 
 document.querySelector("#show-email-link").addEventListener("click", () => {
@@ -959,10 +1036,16 @@ document.querySelector("#set-password-form").addEventListener("submit", async (e
   button.disabled = true;
   setFormMessage(message, "Saving your password…");
   try {
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+      data: { tandem_password_set: true }
+    });
     if (error) throw error;
+    authUser = data.user;
     form.reset();
-    setFormMessage(message, "Password saved. You can use it the next time you sign in.", "success");
+    renderProfile();
+    setPasswordSettingsOpen(false);
+    setFormMessage(message, "Password saved. Your profile is ready for next time.", "success");
   } catch (error) {
     console.error("Could not save your password.", error);
     setFormMessage(message, `Could not save password: ${error.message}`, "error");
@@ -1045,8 +1128,12 @@ document.querySelector("#password-reset-form").addEventListener("submit", async 
   button.disabled = true;
   setFormMessage(message, "Updating your password…");
   try {
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+      data: { tandem_password_set: true }
+    });
     if (error) throw error;
+    authUser = data.user;
     form.reset();
     setFormMessage(message, "Your password has been updated. You can now sign in with it.", "success");
     window.setTimeout(() => {

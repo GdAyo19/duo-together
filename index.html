@@ -295,26 +295,78 @@
       <p class="privacy-note">Your couple space is private to its two members.</p>
     </dialog>
 
-    <dialog class="dialog" id="account-dialog" aria-labelledby="account-title">
-      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close account settings">×</button></form>
-      <p class="context-label">Your Tandem account</p>
-      <h2 id="account-title">Account settings.</h2>
-      <p class="dialog-copy">Set a password so you can sign in again without waiting for an email link.</p>
-      <form id="set-password-form" class="dialog-form">
-        <label for="new-password">New password</label>
-        <div class="password-field">
-          <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
-          <button class="password-toggle" type="button" data-password-toggle aria-controls="new-password" aria-label="Show password" aria-pressed="false">Show</button>
-        </div>
-        <label for="confirm-password">Confirm password</label>
-        <div class="password-field">
-          <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
-          <button class="password-toggle" type="button" data-password-toggle aria-controls="confirm-password" aria-label="Show password" aria-pressed="false">Show</button>
-        </div>
-        <button class="primary-button" type="submit">Save password</button>
-      </form>
-      <p class="form-message" id="account-message" aria-live="polite"></p>
-      <button class="auth-switch-button sign-out-button" id="sign-out-button" type="button">Sign out</button>
+    <dialog class="dialog profile-dialog" id="account-dialog" aria-labelledby="account-title">
+      <form method="dialog" class="dialog-close-form"><button class="dialog-close" aria-label="Close profile">×</button></form>
+      <div class="profile-content">
+        <p class="context-label">YOUR TANDEM ACCOUNT</p>
+        <header class="profile-identity">
+          <div class="profile-avatar" id="profile-avatar" aria-hidden="true">T</div>
+          <div class="profile-identity-copy">
+            <h2 id="account-title">Your profile.</h2>
+            <p id="profile-name">Tandem member</p>
+            <p class="profile-email" id="profile-email"></p>
+          </div>
+        </header>
+
+        <section class="profile-section" aria-labelledby="profile-details-title">
+          <div class="profile-section-heading">
+            <div><p class="context-label">YOUR DETAILS</p><h3 id="profile-details-title">Account information</h3></div>
+            <span class="profile-status"><span aria-hidden="true">●</span> Signed in</span>
+          </div>
+          <dl class="profile-details">
+            <div><dt>Email</dt><dd id="profile-email-detail"></dd></div>
+            <div><dt>Member since</dt><dd id="profile-joined"></dd></div>
+          </dl>
+        </section>
+
+        <section class="profile-section" aria-labelledby="profile-space-title">
+          <div class="profile-section-heading">
+            <div><p class="context-label">YOUR SHARED SPACE</p><h3 id="profile-space-title">Learning together</h3></div>
+          </div>
+          <p class="profile-space-name" id="profile-space-name"></p>
+          <p class="profile-space-detail" id="profile-space-detail"></p>
+          <div class="profile-stats">
+            <div><strong id="profile-streak">0</strong><span>shared-day streak</span></div>
+            <div><strong id="profile-phrases">0</strong><span>saved phrases</span></div>
+          </div>
+          <button class="outline-button hidden" id="profile-create-space" type="button">Create or join your shared space</button>
+        </section>
+
+        <section class="profile-section profile-security" aria-labelledby="profile-security-title">
+          <div class="profile-section-heading">
+            <div><p class="context-label">SIGN-IN &amp; SECURITY</p><h3 id="profile-security-title">Password</h3></div>
+          </div>
+          <p class="profile-space-detail" id="password-status">Manage your password here whenever you need to.</p>
+          <button class="outline-button" id="password-settings-toggle" type="button" aria-expanded="false" aria-controls="password-settings">Password settings</button>
+          <div class="password-settings hidden" id="password-settings">
+            <form id="set-password-form" class="dialog-form">
+              <label for="new-password">New password</label>
+              <div class="password-field">
+                <input id="new-password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+                <button class="password-toggle" type="button" data-password-toggle aria-controls="new-password" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+              <label for="confirm-password">Confirm password</label>
+              <div class="password-field">
+                <input id="confirm-password" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+                <button class="password-toggle" type="button" data-password-toggle aria-controls="confirm-password" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+              <button class="primary-button" type="submit">Save password</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="profile-section profile-support" aria-labelledby="profile-support-title">
+          <div class="profile-section-heading">
+            <div><p class="context-label">NEED A HAND?</p><h3 id="profile-support-title">Help &amp; support</h3></div>
+          </div>
+          <a href="https://github.com/GdAyo19/duo-together/issues/new" target="_blank" rel="noopener noreferrer">Report a problem <span aria-hidden="true">↗</span></a>
+          <a href="https://github.com/GdAyo19" target="_blank" rel="noopener noreferrer">Contact the creator on GitHub <span aria-hidden="true">↗</span></a>
+          <a href="https://github.com/GdAyo19/duo-together" target="_blank" rel="noopener noreferrer">Visit the Tandem project <span aria-hidden="true">↗</span></a>
+        </section>
+
+        <p class="form-message" id="account-message" aria-live="polite"></p>
+        <button class="auth-switch-button sign-out-button" id="sign-out-button" type="button">Sign out</button>
+      </div>
     </dialog>
 
     <dialog class="dialog language-dialog" id="language-dialog" aria-labelledby="language-dialog-title">
