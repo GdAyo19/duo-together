@@ -138,6 +138,21 @@ describe("daily lessons", () => {
       );
     }
   });
+
+  it("gives every phrase a non-empty, distinct phrase and translation", () => {
+    for (const language of ["fr", "es", "it"] as const) {
+      const library = lessonLibrary(language);
+
+      for (const entry of library) {
+        expect(entry.key.trim()).not.toBe("");
+        expect(entry.phrase.trim()).not.toBe("");
+        expect(entry.translation.trim()).not.toBe("");
+      }
+
+      expect(new Set(library.map((entry) => entry.phrase)).size).toBe(library.length);
+      expect(new Set(library.map((entry) => entry.translation)).size).toBe(library.length);
+    }
+  });
 });
 
 describe("call offer negotiation", () => {
