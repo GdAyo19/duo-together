@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { languagePacks } from "./src/domain/languages";
 import { getSharedStreak, summarizePractice } from "./src/domain/progress";
+import { lessonForDate } from "./src/domain/lessons";
 import { AVATAR_BUCKET, avatarPathFor, validateAvatarFile, validateNickname } from "./src/domain/profile";
-import { shouldSignOut } from "./src/domain/idle";
+import { idleRemainingMs, shouldSignOut, shouldWarnIdle } from "./src/domain/idle";
 import { createCallSession } from "./src/call";
 
 const localKey = "tandem-shared-space-v1";
@@ -19,6 +20,8 @@ const feedback = document.querySelector("#answer-feedback");
 const nextButton = document.querySelector("#quiz-next");
 const quizContent = document.querySelector("#quiz-content");
 const quizResult = document.querySelector("#quiz-result");
+const learnPanel = document.querySelector("#quiz-learn");
+const learnList = document.querySelector("#learn-list");
 const toast = document.querySelector("#toast");
 const appViews = document.querySelector("#app-views");
 const pairingScreen = document.querySelector("#pairing-screen");
@@ -43,7 +46,11 @@ let realtimeRefreshTimer;
 let toastTimer;
 let callSession = null;
 let idleTimer = null;
+let idleCountdown = null;
+let idleWarningShown = false;
 let lastActivityAt = 0;
+let activeLesson = null;
+let practiceSaved = false;
 
 function readLocalState() {
   const fallback = {
@@ -78,8 +85,94 @@ function persistLocalState() {
   }
 }
 
+function coupleTimeZone() {
+  const zone = couple?.timezone;
+  return zone && zone !== "UTC" ? zone : undefined;
+}
+
 function currentDate() {
-  return new Date().toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: coupleTimeZone(),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+  } catch (error) {
+    reportError("Could not work out today's date.", error);
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function seenPhraseKeys() {
+  if (couple) return sharedProgress?.seenPhraseKeys || [];
+  const rows = localState.practiceDays;
+  const today = currentDate();
+  return rows
+    .filter((row) => {
+      const date = row.practiced_on || row.practice_date;
+      return Boolean(date) && date < today;
+    })
+    .sort((left, right) => {
+      const leftDate = left.practiced_on || left.practice_date || "";
+      const rightDate = right.practiced_on || right.practice_date || "";
+      return leftDate.localeCompare(rightDate);
+    })
+    .flatMap((row) => (Array.isArray(row.phrase_keys) ? row.phrase_keys : []));
+}
+
+function refreshLesson() {
+  // Past days decide what has been learned, so a phrase is not repeated until
+  // the couple has seen the whole library. Today's own practice is left out so
+  // the lesson stays the same after they finish it.
+  activeLesson = lessonForDate(activeLanguage, currentDate(), seenPhraseKeys(), couple?.id || "local");
+  return activeLesson;
+}
+
+function getLesson() {
+  return activeLesson || refreshLesson();
+}
+
+function getDayPhrase() {
+  return getLesson().phrases[0];
+}
+
+function reportError(context, error) {
+  console.error(context, error);
+  const endpoint = window.TANDEM_CONFIG?.errorEndpoint;
+  if (!endpoint) return;
+  try {
+    fetch(endpoint, {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context,
+        message: error?.message || String(error),
+        stack: error?.stack || null,
+        url: window.location.href,
+        at: new Date().toISOString()
+      })
+    }).catch(() => {});
+  } catch (captureError) {
+    console.error("Could not report an error.", captureError);
+  }
+}
+
+function showSyncRetry(visible) {
+  document.querySelector("#sync-retry").classList.toggle("hidden", !visible);
+}
+
+async function adoptBrowserTimeZone() {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!timeZone) return;
+  try {
+    const { data, error } = await supabase.rpc("set_couple_timezone", { p_timezone: timeZone });
+    if (error) throw error;
+    if (couple) couple.timezone = data?.timezone || timeZone;
+  } catch (error) {
+    reportError("Could not save your time zone.", error);
+  }
 }
 
 function showToast(message) {
@@ -207,6 +300,13 @@ function renderProfile() {
   document.querySelector("#password-status").textContent = passwordSet
     ? "Password sign-in is ready. You can update your password here anytime."
     : "Your password options are here whenever you need to add or update one.";
+  document.querySelector("#profile-email-input").value = authUser?.email || "";
+  document.querySelector("#avatar-change").classList.toggle("hidden", !couple);
+  document.querySelector("#nickname-form").classList.toggle("hidden", !couple);
+  document.querySelector("#profile-edit-note").classList.toggle("hidden", Boolean(couple));
+  document.querySelector("#avatar-remove").classList.toggle("hidden", !couple || !member?.avatar_url);
+  document.querySelector("#space-actions").classList.toggle("hidden", !couple);
+  renderReminderButton();
 }
 
 function getPeople() {
@@ -415,6 +515,8 @@ function renderInvitePanel(people) {
 
 function render() {
   const language = getCurrentLanguage();
+  const lesson = refreshLesson();
+  const dayPhrase = lesson.phrases[0];
   const people = getPeople();
   const rows = getPracticeRows();
   const today = currentDate();
@@ -428,8 +530,8 @@ function render() {
   document.querySelector("#language-name").textContent = language.name;
   document.querySelector("#language-code").textContent = activeLanguage.toUpperCase();
   document.querySelector("#lesson-description").textContent = language.description;
-  document.querySelector("#phrase-target").textContent = language.phrase;
-  document.querySelector("#phrase-translation").textContent = language.translation;
+  document.querySelector("#phrase-target").textContent = dayPhrase.phrase;
+  document.querySelector("#phrase-translation").textContent = dayPhrase.translation;
   document.querySelector("#streak-count").textContent = String(
     sharedProgress ? sharedProgress.streak : getSharedStreak(rows, people, today)
   );
@@ -439,13 +541,13 @@ function render() {
   document.querySelector("#phrase-count").textContent = String(couple ? savedPhrasesTotal : saved.length);
   document.querySelector("#minutes-count").textContent = String(progress.minutesToday);
   document.querySelector("#today-line").textContent = new Intl.DateTimeFormat("en", {
-    timeZone: "UTC",
+    timeZone: coupleTimeZone(),
     weekday: "long",
     month: "long",
     day: "numeric"
   }).format(new Date());
   document.querySelector("#practice-date").textContent = new Intl.DateTimeFormat("en", {
-    timeZone: "UTC",
+    timeZone: coupleTimeZone(),
     month: "short",
     day: "numeric"
   }).format(new Date());
@@ -453,21 +555,22 @@ function render() {
     ? "Your space is ready. Invite your person to start a shared streak."
     : "Every little check-in brings your shared streak closer.";
   document.querySelector("#phrase-date").textContent = new Intl.DateTimeFormat("en", {
-    timeZone: "UTC",
+    timeZone: coupleTimeZone(),
     month: "short",
     day: "numeric"
   }).format(new Date());
   const phraseCount = couple ? savedPhrasesTotal : saved.length;
   document.querySelector("#moments-count").textContent = `${phraseCount} ${phraseCount === 1 ? "phrase" : "phrases"}`;
-  document.querySelector("#phrase-hint").textContent = saved.some((item) => item.phrase === language.phrase)
+  document.querySelector("#phrase-hint").textContent = saved.some((item) => item.phrase === dayPhrase.phrase)
     ? "Already in your shared moments."
     : "Say it to each other today.";
 
   const saveButton = document.querySelector("#save-phrase");
-  const phraseSaved = saved.some((item) => item.phrase === language.phrase && item.language === activeLanguage);
+  const phraseSaved = saved.some((item) => item.phrase === dayPhrase.phrase && item.language === activeLanguage);
   saveButton.classList.toggle("saved", phraseSaved);
   saveButton.textContent = phraseSaved ? "Saved" : "Save phrase";
 
+  renderPartnerMarks(people);
   renderLane(document.querySelector("#practice-lanes"), people, rows, today);
   renderLane(document.querySelector("#practice-lanes-large"), people, rows, today);
   renderSavedPhrases(saved, phraseCount);
@@ -480,6 +583,28 @@ function render() {
     setSyncStatus("", "Saved on this device");
     document.querySelector("#account-button").textContent = authUser ? "My profile" : supabase ? "Sign in to sync" : "Cloud sync not set up";
   }
+  maybeNotifyReminder();
+}
+
+function renderPartnerMarks(people) {
+  const container = document.querySelector(".partner-marks");
+  if (!container) return;
+  container.replaceChildren();
+  people.forEach((person) => {
+    const mark = document.createElement("span");
+    mark.className = `partner-mark${person.avatarUrl ? " has-photo" : ""}`;
+    mark.setAttribute("aria-hidden", "true");
+    if (person.avatarUrl) {
+      const photo = document.createElement("img");
+      photo.src = person.avatarUrl;
+      photo.alt = "";
+      photo.decoding = "async";
+      mark.append(photo);
+    } else {
+      mark.textContent = person.pending ? "·" : person.name.slice(0, 1).toUpperCase();
+    }
+    container.append(mark);
+  });
 }
 
 function setPairingTab(tab) {
@@ -531,7 +656,7 @@ function showPasswordLogin() {
 }
 
 function getQuestions() {
-  return getCurrentLanguage().questions;
+  return getLesson().questions;
 }
 
 function renderQuestion() {
@@ -571,19 +696,61 @@ function selectAnswer(selectedIndex) {
   nextButton.textContent = questionIndex === getQuestions().length - 1 ? "See your little win" : "Next phrase";
 }
 
+function speakPhrase(text) {
+  if (!("speechSynthesis" in window)) {
+    showToast("Audio playback isn't available in this browser.");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = getCurrentLanguage().speech;
+  window.speechSynthesis.speak(utterance);
+}
+
+function renderLearn() {
+  learnList.replaceChildren();
+  getLesson().phrases.forEach((phrase) => {
+    const item = document.createElement("li");
+    item.className = "learn-item";
+
+    const words = document.createElement("div");
+    words.className = "learn-words";
+    const target = document.createElement("p");
+    target.className = "learn-phrase";
+    target.textContent = phrase.phrase;
+    const translation = document.createElement("p");
+    translation.className = "learn-translation";
+    translation.textContent = phrase.translation;
+    words.append(target, translation);
+
+    const listen = document.createElement("button");
+    listen.type = "button";
+    listen.className = "learn-listen";
+    listen.textContent = "Listen";
+    listen.setAttribute("aria-label", `Listen to “${phrase.phrase}”`);
+    listen.addEventListener("click", () => speakPhrase(phrase.phrase));
+
+    item.append(words, listen);
+    learnList.append(item);
+  });
+}
+
 function startChallenge() {
   if (authUser && !couple) {
     showPairingScreen();
     showToast("Create or join your shared space to begin.");
     return;
   }
+  refreshLesson();
   questionIndex = 0;
   completed = false;
-  quizContent.classList.remove("hidden");
+  practiceSaved = false;
+  renderLearn();
+  learnPanel.classList.remove("hidden");
+  quizContent.classList.add("hidden");
   quizResult.classList.add("hidden");
-  renderQuestion();
+  prepareCallPanel();
   dialog.showModal();
-  startCall();
 }
 
 function callElements() {
@@ -592,8 +759,11 @@ function callElements() {
     partnerVideo: document.querySelector("#partner-video"),
     localVideo: document.querySelector("#local-video"),
     placeholder: document.querySelector("#call-placeholder"),
+    partnerAvatar: document.querySelector("#call-partner-avatar"),
+    partnerMark: document.querySelector(".call-placeholder-mark"),
     partnerLabel: document.querySelector("#partner-name-label"),
     status: document.querySelector("#call-status"),
+    join: document.querySelector("#call-join"),
     mute: document.querySelector("#call-mute"),
     video: document.querySelector("#call-video"),
     end: document.querySelector("#call-end")
@@ -604,17 +774,38 @@ function setCallStatus(message) {
   callElements().status.textContent = message;
 }
 
-function startCall() {
-  if (callSession) return;
+function prepareCallPanel() {
   const elements = callElements();
   const partner = members.find((member) => member.user_id !== authUser?.id);
   elements.partnerLabel.textContent = partner?.display_name || "Your person";
   elements.placeholder.classList.remove("hidden");
   elements.partnerVideo.classList.add("hidden");
+  elements.partnerVideo.srcObject = null;
+  elements.join.classList.remove("hidden");
   elements.mute.setAttribute("aria-pressed", "false");
   elements.video.setAttribute("aria-pressed", "false");
   elements.mute.textContent = "Mute";
   elements.video.textContent = "Camera off";
+  elements.panel.classList.toggle("hidden", !supabase || !couple || !authUser);
+
+  if (partner?.avatar_url) {
+    elements.partnerAvatar.src = partner.avatar_url;
+    elements.partnerAvatar.classList.remove("hidden");
+    elements.partnerMark.classList.add("hidden");
+  } else {
+    elements.partnerAvatar.removeAttribute("src");
+    elements.partnerAvatar.classList.add("hidden");
+    elements.partnerMark.classList.remove("hidden");
+  }
+  setCallStatus(supabase && couple && authUser
+    ? "Join whenever you're ready — your camera stays off until then."
+    : "Join a shared space to make video calls.");
+}
+
+function startCall() {
+  if (callSession) return;
+  const elements = callElements();
+  elements.join.classList.add("hidden");
 
   if (!supabase || !couple || !authUser) {
     elements.panel.classList.add("hidden");
@@ -622,17 +813,17 @@ function startCall() {
   }
 
   elements.panel.classList.remove("hidden");
-  const turn = window.TANDEM_CONFIG?.turn;
+  const rtc = window.TANDEM_CONFIG || {};
   const partnerJoined = members.some((member) => member.user_id !== authUser.id);
   setCallStatus(partnerJoined
-    ? (turn?.urls ? "Connecting your call…" : "Connecting with a direct link — no relay configured.")
+    ? (rtc.turn?.urls || rtc.turns?.length ? "Connecting your call…" : "Connecting with a direct link — no relay configured.")
     : "Your call starts when your person opens a challenge.");
 
   callSession = createCallSession({
     supabase,
     coupleId: couple.id,
     userId: authUser.id,
-    turn,
+    rtc,
     onEvent: (event, detail) => handleCallEvent(event, detail)
   });
   callSession.start();
@@ -672,6 +863,10 @@ function handleCallEvent(event, detail) {
     elements.panel.classList.remove("hidden");
     return;
   }
+  if (event === "reconnecting") {
+    setCallStatus("The call dropped. Reconnecting…");
+    return;
+  }
   if (event === "disconnected") {
     setCallStatus("The call dropped. You can keep learning.");
     return;
@@ -681,6 +876,7 @@ function handleCallEvent(event, detail) {
     elements.partnerVideo.srcObject = null;
     elements.partnerVideo.classList.add("hidden");
     elements.placeholder.classList.remove("hidden");
+    elements.join.classList.remove("hidden");
     setCallStatus("Call ended.");
   }
 }
@@ -701,12 +897,13 @@ function markActivity() {
 function startIdleSignOut() {
   if (idleTimer) return;
   markActivity();
+  idleWarningShown = false;
   activityEvents.forEach((name) => {
     window.addEventListener(name, markActivity, { passive: true, capture: true });
   });
   document.removeEventListener("visibilitychange", markActivity);
   document.addEventListener("visibilitychange", markActivity);
-  idleTimer = window.setInterval(checkIdle, 60 * 1000);
+  idleTimer = window.setInterval(checkIdle, 15 * 1000);
 }
 
 function stopIdleSignOut() {
@@ -715,8 +912,13 @@ function stopIdleSignOut() {
   });
   document.removeEventListener("visibilitychange", markActivity);
   if (idleTimer) window.clearInterval(idleTimer);
+  if (idleCountdown) window.clearInterval(idleCountdown);
   idleTimer = null;
+  idleCountdown = null;
+  idleWarningShown = false;
   lastActivityAt = 0;
+  const warning = document.querySelector("#idle-dialog");
+  if (warning?.open) warning.close();
 }
 
 function checkIdle() {
@@ -725,15 +927,55 @@ function checkIdle() {
     markActivity();
     return;
   }
-  if (!shouldSignOut(lastActivityAt, Date.now())) return;
+  if (shouldSignOut(lastActivityAt, Date.now())) {
+    signOutForIdle();
+    return;
+  }
+  if (!idleWarningShown && shouldWarnIdle(lastActivityAt, Date.now())) {
+    showIdleWarning();
+  }
+}
+
+function signOutForIdle() {
   stopIdleSignOut();
   endCall();
   document.querySelector("#account-dialog").close();
   dialog.close();
-  showToast("You were signed out after 60 minutes of inactivity.");
+  showToast("You were signed out after an hour of inactivity.");
   supabase.auth.signOut().catch((error) => {
-    console.error("Could not sign out after inactivity.", error);
+    reportError("Could not sign out after inactivity.", error);
   });
+}
+
+function showIdleWarning() {
+  const warning = document.querySelector("#idle-dialog");
+  if (!warning || warning.open) return;
+  idleWarningShown = true;
+  updateIdleWarning();
+  warning.showModal();
+  if (idleCountdown) window.clearInterval(idleCountdown);
+  idleCountdown = window.setInterval(updateIdleWarning, 1000);
+}
+
+function updateIdleWarning() {
+  const copy = document.querySelector("#idle-copy");
+  const remaining = idleRemainingMs(lastActivityAt, Date.now());
+  if (!copy || !Number.isFinite(remaining)) return;
+  if (remaining <= 0) {
+    copy.textContent = "Signing you out now.";
+    return;
+  }
+  const seconds = Math.ceil(remaining / 1000);
+  copy.textContent = `You'll be signed out in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} unless you're still here.`;
+}
+
+function staySignedIn() {
+  markActivity();
+  idleWarningShown = false;
+  if (idleCountdown) window.clearInterval(idleCountdown);
+  idleCountdown = null;
+  const warning = document.querySelector("#idle-dialog");
+  if (warning?.open) warning.close();
 }
 
 function stopSharedUpdates() {
@@ -795,7 +1037,7 @@ async function loadSharedSpace(user) {
     { data: progressData, error: progressError },
     { data: phraseData, error: phraseError, count: phraseCount }
   ] = await Promise.all([
-    supabase.from("couples").select("id, name, language, invite_code").eq("id", membership.couple_id).single(),
+    supabase.from("couples").select("id, name, language, invite_code, timezone").eq("id", membership.couple_id).single(),
     supabase    .from("couple_members")
     .select("user_id, display_name, avatar_url, joined_at").eq("couple_id", membership.couple_id).order("joined_at"),
     supabase.rpc("get_couple_progress", { p_couple_id: membership.couple_id }),
@@ -817,7 +1059,8 @@ async function loadSharedSpace(user) {
   sharedProgress = {
     streak: progressData.streak,
     words_learned: progressData.words_learned,
-    minutesToday: progressData.minutes_today
+    minutesToday: progressData.minutes_today,
+    seenPhraseKeys: Array.isArray(progressData.seen_phrase_keys) ? progressData.seen_phrase_keys : []
   };
   practiceDays = progressData.today_user_ids.map((userId) => ({
     user_id: userId,
@@ -830,6 +1073,7 @@ async function loadSharedSpace(user) {
   showAppViews();
   render();
   subscribeToSharedUpdates(couple.id);
+  showSyncRetry(false);
 }
 
 async function handleSession(session) {
@@ -857,10 +1101,11 @@ async function handleSession(session) {
   try {
     await loadSharedSpace(authUser);
   } catch (error) {
-    console.error("Could not load the shared Tandem space.", error);
+    reportError("Could not load the shared Tandem space.", error);
     showAppViews();
     render();
     setSyncStatus("offline", "Couldn't load shared space");
+    showSyncRetry(true);
     showToast(`Could not load your shared space: ${error.message}`);
   }
 }
@@ -904,13 +1149,15 @@ async function initializeBackend() {
 
 async function recordPractice() {
   const day = currentDate();
+  const phraseKeys = getLesson().phrases.map((phrase) => phrase.key);
   if (couple && authUser) {
     const { error } = await supabase.from("practice_days").insert({
       couple_id: couple.id,
       user_id: authUser.id,
       practiced_on: day,
       words_learned: 3,
-      minutes: 5
+      minutes: 5,
+      phrase_keys: phraseKeys
     });
     if (error?.code === "23505") {
       await loadSharedSpace(authUser);
@@ -935,7 +1182,8 @@ async function recordPractice() {
         person,
         practice_date: day,
         words_learned: 3,
-        minutes: 5
+        minutes: 5,
+        phrase_keys: phraseKeys
       });
     }
   }
@@ -944,10 +1192,21 @@ async function recordPractice() {
   showToast("Your date is saved on this device.");
 }
 
+async function savePractice() {
+  if (practiceSaved) return;
+  practiceSaved = true;
+  try {
+    await recordPractice();
+  } catch (error) {
+    practiceSaved = false;
+    throw error;
+  }
+}
+
 async function savePhrase() {
-  const language = getCurrentLanguage();
+  const dayPhrase = getDayPhrase();
   const alreadySaved = (couple ? savedPhrases : localState.savedPhrases)
-    .some((phrase) => phrase.language === activeLanguage && phrase.phrase === language.phrase);
+    .some((phrase) => phrase.language === activeLanguage && phrase.phrase === dayPhrase.phrase);
   if (alreadySaved) {
     showToast("This phrase is already in your shared moments.");
     return;
@@ -958,8 +1217,8 @@ async function savePhrase() {
       couple_id: couple.id,
       saved_by: authUser.id,
       language: activeLanguage,
-      phrase: language.phrase,
-      translation: language.translation
+      phrase: dayPhrase.phrase,
+      translation: dayPhrase.translation
     });
     if (error?.code === "23505") {
       await loadSharedSpace(authUser);
@@ -970,10 +1229,10 @@ async function savePhrase() {
     await loadSharedSpace(authUser);
   } else {
     localState.savedPhrases.unshift({
-      id: `${activeLanguage}:${language.phrase}`,
+      id: `${activeLanguage}:${dayPhrase.phrase}`,
       language: activeLanguage,
-      phrase: language.phrase,
-      translation: language.translation
+      phrase: dayPhrase.phrase,
+      translation: dayPhrase.translation
     });
     persistLocalState();
     render();
@@ -1019,7 +1278,7 @@ async function updateLanguage(code) {
       .from("couples")
       .update({ language: code })
       .eq("id", couple.id)
-      .select("id, name, language, invite_code")
+      .select("id, name, language, invite_code, timezone")
       .single();
     if (error) {
       activeLanguage = previous;
@@ -1073,6 +1332,19 @@ document.querySelectorAll("[data-password-toggle]").forEach((toggle) => {
     toggle.setAttribute("aria-pressed", String(visible));
     input.focus({ preventScroll: true });
   });
+});
+
+document.querySelector("#sync-retry").addEventListener("click", async () => {
+  if (!authUser) return;
+  showSyncRetry(false);
+  try {
+    await loadSharedSpace(authUser);
+  } catch (error) {
+    reportError("Could not retry loading the shared space.", error);
+    setSyncStatus("offline", "Couldn't load shared space");
+    showSyncRetry(true);
+    showToast(`Still offline: ${error.message}`);
+  }
 });
 
 document.querySelector("#account-button").addEventListener("click", () => {
@@ -1136,6 +1408,7 @@ document.querySelector("#avatar-input").addEventListener("change", async (event)
   button.disabled = true;
   setAvatarStatus("Uploading your photo…");
   try {
+    const previousAvatarUrl = getProfileMember()?.avatar_url || null;
     const path = avatarPathFor(authUser.id, file.name, file.type, Date.now());
     const { error: uploadError } = await supabase.storage
       .from(AVATAR_BUCKET)
@@ -1148,15 +1421,145 @@ document.querySelector("#avatar-input").addEventListener("change", async (event)
       p_avatar_url: publicUrl
     });
     if (saveError) throw saveError;
+    if (previousAvatarUrl) await removeAvatarFile(previousAvatarUrl);
 
     await refreshMyProfile();
     setAvatarStatus("Photo updated.", "success");
   } catch (error) {
-    console.error("Could not update your profile photo.", error);
+    reportError("Could not update your profile photo.", error);
     setAvatarStatus(`Could not update your photo: ${error.message}`, "error");
   } finally {
     button.disabled = false;
     input.value = "";
+  }
+});
+
+function avatarPathFromUrl(url) {
+  if (!url) return null;
+  const marker = "/storage/v1/object/public/avatars/";
+  const index = url.indexOf(marker);
+  if (index === -1) return null;
+  const path = decodeURIComponent(url.slice(index + marker.length).split("?")[0]);
+  return path || null;
+}
+
+async function removeAvatarFile(url) {
+  const path = avatarPathFromUrl(url);
+  if (!path || !supabase) return;
+  try {
+    const { error } = await supabase.storage.from(AVATAR_BUCKET).remove([path]);
+    if (error) throw error;
+  } catch (error) {
+    reportError("Could not remove the previous profile photo.", error);
+  }
+}
+
+function setAccountMessage(message, kind = "") {
+  const element = document.querySelector("#account-message");
+  element.textContent = message;
+  element.className = `form-message${kind ? ` ${kind}` : ""}`;
+}
+
+document.querySelector("#avatar-remove").addEventListener("click", async () => {
+  if (!supabase || !authUser) return;
+  const member = getProfileMember();
+  if (!member?.avatar_url) return;
+  const button = document.querySelector("#avatar-remove");
+  button.disabled = true;
+  setAvatarStatus("Removing your photo…");
+  try {
+    const { error } = await supabase.rpc("update_my_profile", {
+      p_display_name: member.display_name,
+      p_avatar_url: null
+    });
+    if (error) throw error;
+    await removeAvatarFile(member.avatar_url);
+    await refreshMyProfile();
+    setAvatarStatus("Photo removed.", "success");
+  } catch (error) {
+    reportError("Could not remove your profile photo.", error);
+    setAvatarStatus(`Could not remove your photo: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+const reminderKey = "tandem-practice-reminder";
+const reminderSeenKey = "tandem-practice-reminder-seen";
+
+function reminderEnabled() {
+  try {
+    return localStorage.getItem(reminderKey) === "on";
+  } catch (error) {
+    reportError("Could not read the reminder setting.", error);
+    return false;
+  }
+}
+
+function renderReminderButton() {
+  const button = document.querySelector("#reminder-toggle");
+  if (!button) return;
+  const supported = "Notification" in window;
+  const enabled = supported && reminderEnabled() && Notification.permission === "granted";
+  button.disabled = !supported;
+  button.setAttribute("aria-pressed", String(enabled));
+  button.textContent = !supported
+    ? "Reminders aren't supported in this browser"
+    : enabled ? "Reminder on — turn off" : "Turn on reminder";
+}
+
+function maybeNotifyReminder() {
+  if (!reminderEnabled() || !("Notification" in window) || Notification.permission !== "granted") return;
+  if (document.visibilityState !== "visible") return;
+  const today = currentDate();
+  try {
+    if (localStorage.getItem(reminderSeenKey) === today) return;
+  } catch {
+    return;
+  }
+  const minutes = sharedProgress?.minutesToday ?? summarizePractice(getPracticeRows(), today).minutesToday;
+  if (minutes >= 10) return;
+  try {
+    new Notification("Your five-minute date is waiting", {
+      body: "A few new phrases are ready for the two of you.",
+      icon: "./favicon.svg",
+      tag: "tandem-daily"
+    });
+    localStorage.setItem(reminderSeenKey, today);
+  } catch (error) {
+    reportError("Could not show the practice reminder.", error);
+  }
+}
+
+document.querySelector("#reminder-toggle").addEventListener("click", async () => {
+  const button = document.querySelector("#reminder-toggle");
+  if (!("Notification" in window)) return;
+  if (reminderEnabled() && Notification.permission === "granted") {
+    try {
+      localStorage.removeItem(reminderKey);
+    } catch (error) {
+      reportError("Could not save the reminder setting.", error);
+    }
+    renderReminderButton();
+    setAccountMessage("Practice reminders are off.", "success");
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setAccountMessage("Your browser blocked notifications. Allow them in site settings to use reminders.", "error");
+      return;
+    }
+    localStorage.setItem(reminderKey, "on");
+    setAccountMessage("Reminders are on. We'll nudge you on days you haven't practiced yet.", "success");
+  } catch (error) {
+    reportError("Could not enable practice reminders.", error);
+    setAccountMessage(`Could not enable reminders: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    renderReminderButton();
   }
 });
 
@@ -1192,9 +1595,105 @@ document.querySelector("#nickname-form").addEventListener("submit", async (event
   }
 });
 
+document.querySelector("#profile-invite-reset").addEventListener("click", async () => {
+  if (!supabase || !couple) return;
+  if (!window.confirm("Create a new invite code? Anyone holding the old code will no longer be able to join.")) return;
+  const button = document.querySelector("#profile-invite-reset");
+  button.disabled = true;
+  try {
+    const { data, error } = await supabase.rpc("regenerate_invite_code");
+    if (error) throw error;
+    if (data?.invite_code) couple.invite_code = data.invite_code;
+    render();
+    renderProfile();
+    setAccountMessage("New invite code ready. Share it with your person.", "success");
+  } catch (error) {
+    reportError("Could not regenerate the invite code.", error);
+    setAccountMessage(`Could not create a new code: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#profile-leave").addEventListener("click", async () => {
+  if (!supabase) return;
+  if (!window.confirm("Leave the shared space? Your own practice history will be deleted. Your partner keeps the space and its saved phrases.")) return;
+  const button = document.querySelector("#profile-leave");
+  button.disabled = true;
+  try {
+    const { error } = await supabase.rpc("leave_couple");
+    if (error) throw error;
+    document.querySelector("#account-dialog").close();
+    couple = null;
+    members = [];
+    await loadSharedSpace(authUser);
+    showToast("You left the shared space.");
+  } catch (error) {
+    reportError("Could not leave the shared space.", error);
+    setAccountMessage(`Could not leave the space: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#profile-delete").addEventListener("click", async () => {
+  if (!supabase || !authUser) return;
+  if (!window.confirm("Delete your Tandem data? This removes your practice history, the phrases you saved, your profile photo, and your space membership. It cannot be undone.")) return;
+  const button = document.querySelector("#profile-delete");
+  button.disabled = true;
+  const avatarUrl = getProfileMember()?.avatar_url || null;
+  try {
+    const { error } = await supabase.rpc("delete_my_data");
+    if (error) throw error;
+    if (avatarUrl) await removeAvatarFile(avatarUrl);
+    showToast("Your Tandem data has been deleted.");
+    await supabase.auth.signOut();
+  } catch (error) {
+    reportError("Could not delete your Tandem data.", error);
+    setAccountMessage(`Could not delete your data: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#email-change-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!supabase || !authUser) return;
+  const form = event.currentTarget;
+  const email = String(new FormData(form).get("email") || "").trim();
+  if (!email) return;
+  const button = document.querySelector("#email-change-save");
+  button.disabled = true;
+  setAccountMessage("Sending a confirmation link…");
+  try {
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) throw error;
+    setAccountMessage("Check both your old and new inboxes to confirm the change.", "success");
+  } catch (error) {
+    reportError("Could not change your email address.", error);
+    setAccountMessage(`Could not update your email: ${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
 document.querySelector("#challenge-dialog").addEventListener("close", () => {
   endCall();
+  if (completed && !practiceSaved) {
+    savePractice().catch((error) => {
+      reportError("Could not save today's practice.", error);
+      showToast(`Could not save today's practice: ${error.message}`);
+    });
+  }
 });
+
+document.querySelector("#call-join").addEventListener("click", () => {
+  startCall();
+});
+
+document.querySelector("#idle-stay").addEventListener("click", staySignedIn);
+
+document.querySelector("#idle-sign-out").addEventListener("click", signOutForIdle);
 
 document.querySelector("#call-end").addEventListener("click", () => {
   endCall();
@@ -1333,6 +1832,10 @@ document.querySelector("#set-password-form").addEventListener("submit", async (e
   const message = document.querySelector("#account-message");
   const values = new FormData(form);
   const password = values.get("password");
+  if (typeof password !== "string" || password.length < 8) {
+    setFormMessage(message, "Choose a password with at least 8 characters.", "error");
+    return;
+  }
   if (password !== values.get("confirmPassword")) {
     setFormMessage(message, "Those passwords don't match. Please try again.", "error");
     return;
@@ -1425,6 +1928,10 @@ document.querySelector("#password-reset-form").addEventListener("submit", async 
   const message = document.querySelector("#auth-message");
   const values = new FormData(form);
   const password = values.get("password");
+  if (typeof password !== "string" || password.length < 8) {
+    setFormMessage(message, "Choose a password with at least 8 characters.", "error");
+    return;
+  }
   if (password !== values.get("confirmPassword")) {
     setFormMessage(message, "Those passwords don't match. Please try again.", "error");
     return;
@@ -1476,6 +1983,7 @@ document.querySelector("#create-space-form").addEventListener("submit", async (e
     });
     if (error) throw error;
     couple = data;
+    await adoptBrowserTimeZone();
     await loadSharedSpace(authUser);
     showToast("Your shared space is ready. Send your person the invite code.");
   } catch (error) {
@@ -1552,7 +2060,7 @@ document.querySelector("#finish-challenge").addEventListener("click", async () =
     const button = document.querySelector("#finish-challenge");
     button.disabled = true;
     try {
-      await recordPractice();
+      await savePractice();
       dialog.close();
     } catch (error) {
       console.error("Could not save today's practice.", error);
@@ -1573,14 +2081,15 @@ document.querySelector("#save-phrase").addEventListener("click", () => {
 });
 
 document.querySelector("#speak-phrase").addEventListener("click", () => {
-  if (!("speechSynthesis" in window)) {
-    showToast("Audio playback isn't available in this browser.");
-    return;
-  }
-  window.speechSynthesis.cancel();
-  const phrase = new SpeechSynthesisUtterance(getCurrentLanguage().phrase);
-  phrase.lang = getCurrentLanguage().speech;
-  window.speechSynthesis.speak(phrase);
+  speakPhrase(getDayPhrase().phrase);
+});
+
+document.querySelector("#quiz-start").addEventListener("click", () => {
+  learnPanel.classList.add("hidden");
+  quizContent.classList.remove("hidden");
+  questionIndex = 0;
+  renderQuestion();
+  quizContent.querySelector(".quiz-next")?.focus();
 });
 
 window.addEventListener("hashchange", () => {
@@ -1590,6 +2099,23 @@ window.addEventListener("hashchange", () => {
 
 window.addEventListener("focus", refreshSharedSpace);
 document.addEventListener("visibilitychange", refreshSharedSpace);
+
+window.addEventListener("error", (event) => {
+  reportError("Uncaught error", event.error || event.message);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  reportError("Unhandled promise rejection", event.reason);
+});
+
+if ("serviceWorker" in navigator && window.location.protocol === "https:") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((error) => {
+      reportError("Could not enable the offline shell.", error);
+    });
+  });
+}
+
+window.setInterval(maybeNotifyReminder, 15 * 60 * 1000);
 
 const requestedView = window.location.hash.slice(1);
 if (["home", "practice", "moments"].includes(requestedView)) switchView(requestedView, false);

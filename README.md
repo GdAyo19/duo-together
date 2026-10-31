@@ -29,6 +29,15 @@ npm run check
 
 This runs the strict TypeScript check for the shared domain modules, focused unit tests, and production build. Pull requests and pushes to `main` run the same checks in GitHub Actions. Dependabot checks for npm and GitHub Actions updates weekly.
 
+Browser tests run the real page against a local Vite server, with `config.js` stubbed to the on-device preview so they never touch your Supabase data:
+
+```bash
+npx playwright install chromium
+npm run e2e
+```
+
+They cover the home screen rendering without console errors, the teach-then-quiz flow, practice being recorded when the challenge is closed after the last question, saving a phrase, the hidden call panel until a space exists, and the installable manifest. Signing in, uploading an avatar, and real camera calls need two accounts and a browser with a camera, so they are still checked by hand.
+
 ## Enable shared cloud sync
 
 The GitHub Pages site is static, so shared accounts and progress use a separate Supabase project.
@@ -53,7 +62,15 @@ The GitHub Pages site is static, so shared accounts and progress use a separate 
 6. In **Authentication → Providers**, enable email sign-in. Returning users sign in with their email and password; **Forgot password?** sends a password-reset link. Existing passwordless users can use the one-time email link under **First time? Email me a sign-in link**, then set a password from **Account**. Supabase's built-in email service is rate-limited, so configure custom SMTP for reliable reset and first-time sign-in emails.
 7. To enable **Continue with Google**, enable the Google provider in Supabase and add its client ID and secret there. Create a Google OAuth web client, set the live site and local Vite URL as authorized JavaScript origins, and add the callback URL shown by Supabase as an authorized redirect URI in Google Cloud. Keep the OAuth client secret in Supabase; do not commit it. The sign-in dialog also includes show/hide password controls, animated form transitions, and a saved light/dark theme switch.
 
-Video calls run peer to peer over a Supabase Realtime broadcast channel, using the public STUN servers for most home networks and the `avatars` storage bucket from the migrations for profile photos. If calls fail to connect behind restrictive networks, add a TURN relay to `config.js` as `turn: { urls, username, credential }`.
+Profile photos are stored in the public `avatars` bucket created by the migrations; replacing or removing a photo deletes the previous file. Members can change their nickname, leave a space, regenerate its invite code, or delete their Tandem data from the profile page. The sign-in account itself is removed from the Supabase dashboard.
+
+Video calls run peer to peer over a Supabase Realtime broadcast channel, using the public STUN servers for most home networks. If calls fail to connect behind restrictive networks, add a TURN relay to `config.js` as `turn: { urls, username, credential }`; use `turns: [...]` for a list, or `iceServers: [...]` to replace the default list entirely. TURN credentials are visible to the browser by design, so prefer short-lived credentials from your provider over long-lived secrets. This repository does not include a TURN provider.
+
+Set `errorEndpoint` in `config.js` to POST uncaught browser errors and unhandled rejections as JSON to any collector; without it those errors stay in the browser console. The site also ships `manifest.webmanifest` and `sw.js`, so it can be installed on a phone and its shell opens offline, though synced data still needs a network connection.
+
+Passwords must be at least 8 characters in the app. Set Supabase's minimum password length to 8 under **Authentication → Policies** so the server matches the form.
+
+Each language ships 32 phrases. A day's three phrases are a seeded shuffle of the phrases this couple has not practised yet, so both partners see the same lesson, no phrase repeats until the library has been seen once, and the shuffle changes between couples and days. The challenge teaches the three phrases with translations and audio before the quiz asks for them from memory, and the quiz order differs from the order they were taught. "Words learned" counts distinct phrases, not practice days, and the server keeps the list of already-practised phrases alongside the progress summary so the full history is not downloaded.
 
 Until Supabase is configured, the site works in preview mode and stores practice and saved phrases only in that browser. It does not sync across devices. The app only grants access to the two accounts joined to the same invite-only space.
 

@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { getSharedStreak, summarizePractice } from "../src/domain/progress";
+import { lessonForDate, lessonLibrary } from "../src/domain/lessons";
 import {
   AVATAR_MAX_BYTES,
   avatarPathFor,
   validateAvatarFile,
   validateNickname
 } from "../src/domain/profile";
-import { IDLE_TIMEOUT_MS, shouldSignOut } from "../src/domain/idle";
-import { initiatesOffer } from "../src/domain/call";
+import { IDLE_TIMEOUT_MS, IDLE_WARNING_MS, idleRemainingMs, shouldSignOut, shouldWarnIdle } from "../src/domain/idle";
+import { STUN_SERVERS, buildIceServers, initiatesOffer } from "../src/domain/call";
 
 const partners = [
   { id: "okomi", name: "Okomi", pending: false },
@@ -72,6 +73,73 @@ describe("nickname and avatar validation", () => {
   });
 });
 
+describe("daily lessons", () => {
+  it("gives both partners the same three phrases for a date and history", () => {
+    const lesson = lessonForDate("fr", "2026-10-31", [], "couple-1");
+
+    expect(lessonForDate("fr", "2026-10-31", [], "couple-1")).toEqual(lesson);
+    expect(lesson.phrases).toHaveLength(3);
+    expect(lesson.questions).toHaveLength(3);
+    expect(new Set(lesson.phrases.map((phrase) => phrase.key)).size).toBe(3);
+  });
+
+  it("picks a different shuffle for a different couple", () => {
+    const one = lessonForDate("fr", "2026-10-31", [], "couple-1").phrases.map((phrase) => phrase.key);
+    const two = lessonForDate("fr", "2026-10-31", [], "couple-2").phrases.map((phrase) => phrase.key);
+
+    expect(one).not.toEqual(two);
+  });
+
+  it("never repeats a phrase until the whole library has been learned", () => {
+    const learned: string[] = [];
+    const lessons = 10;
+
+    for (let offset = 0; offset < lessons; offset += 1) {
+      const date = new Date(Date.UTC(2026, 0, 1 + offset)).toISOString().slice(0, 10);
+      const lesson = lessonForDate("fr", date, learned, "couple-1");
+
+      for (const phrase of lesson.phrases) {
+        expect(learned).not.toContain(phrase.key);
+      }
+      learned.push(...lesson.phrases.map((phrase) => phrase.key));
+    }
+
+    expect(new Set(learned).size).toBe(lessons * 3);
+  });
+
+  it("starts reviewing once every phrase has been learned", () => {
+    const library = lessonLibrary("es");
+    const seen = library.map((phrase) => phrase.key);
+    const lesson = lessonForDate("es", "2026-10-31", seen, "couple-1");
+
+    expect(lesson.phrases).toHaveLength(3);
+    expect(new Set(lesson.phrases.map((phrase) => phrase.key)).size).toBe(3);
+    lesson.phrases.forEach((phrase) => expect(seen).toContain(phrase.key));
+  });
+
+  it("quizzes each of today's phrases once with three distinct options", () => {
+    for (const language of ["fr", "es", "it"] as const) {
+      const lesson = lessonForDate(language, "2026-10-31", [], "couple-1");
+      const correctAnswers = lesson.questions.map((question) => question.answers[question.correct]);
+
+      lesson.questions.forEach((question) => {
+        expect(question.answers[question.correct]).toBeTruthy();
+        expect(new Set(question.answers).size).toBe(3);
+      });
+      expect(new Set(correctAnswers)).toEqual(new Set(lesson.phrases.map((phrase) => phrase.phrase)));
+    }
+  });
+
+  it("ships a library long enough to avoid repeats for a month", () => {
+    for (const language of ["fr", "es", "it"] as const) {
+      expect(lessonLibrary(language).length).toBeGreaterThanOrEqual(30);
+      expect(new Set(lessonLibrary(language).map((phrase) => phrase.key)).size).toBe(
+        lessonLibrary(language).length
+      );
+    }
+  });
+});
+
 describe("call offer negotiation", () => {
   it("lets only the lower account id start the offer", () => {
     expect(initiatesOffer("aaa", "bbb")).toBe(true);
@@ -81,6 +149,20 @@ describe("call offer negotiation", () => {
   it("does not offer without a partner or to itself", () => {
     expect(initiatesOffer("aaa", "aaa")).toBe(false);
     expect(initiatesOffer("aaa", "")).toBe(false);
+  });
+});
+
+describe("call configuration", () => {
+  it("keeps the default STUN server and appends a configured relay", () => {
+    const servers = buildIceServers({ turn: { urls: "turn:relay.example.com", username: "u", credential: "c" } });
+
+    expect(servers[0]).toEqual(STUN_SERVERS[0]);
+    expect(servers.at(-1)).toEqual({ urls: "turn:relay.example.com", username: "u", credential: "c" });
+  });
+
+  it("accepts several relays and an explicit server list", () => {
+    expect(buildIceServers({ turns: [{ urls: "turn:a" }, { urls: "" }] })).toHaveLength(2);
+    expect(buildIceServers({ iceServers: [{ urls: "turn:only" }] })).toEqual([{ urls: "turn:only" }]);
   });
 });
 
@@ -97,5 +179,28 @@ describe("idle sign-out", () => {
 
   it("does not sign out before any activity has been recorded", () => {
     expect(shouldSignOut(0, Date.now())).toBe(false);
+  });
+
+  it("warns two minutes before signing out", () => {
+    const start = 1_000_000;
+
+    expect(IDLE_WARNING_MS).toBe(2 * 60 * 1000);
+    expect(shouldWarnIdle(start, start + IDLE_TIMEOUT_MS - IDLE_WARNING_MS - 1)).toBe(false);
+    expect(shouldWarnIdle(start, start + IDLE_TIMEOUT_MS - IDLE_WARNING_MS)).toBe(true);
+    expect(shouldWarnIdle(start, start + IDLE_TIMEOUT_MS)).toBe(false);
+    expect(idleRemainingMs(start, start + 60_000)).toBe(IDLE_TIMEOUT_MS - 60_000);
+  });
+});
+
+describe("distinct words learned", () => {
+  it("counts a phrase once even when both partners practiced it", () => {
+    const rows = [
+      { user_id: "okomi", practiced_on: "2026-10-27", minutes: 5, phrase_keys: ["fr-1", "fr-2", "fr-3"] },
+      { user_id: "ifemi", practiced_on: "2026-10-27", minutes: 5, phrase_keys: ["fr-1", "fr-2", "fr-3"] },
+      { user_id: "okomi", practiced_on: "2026-10-28", minutes: 5, phrase_keys: ["fr-1", "fr-4", "fr-5"] }
+    ];
+
+    expect(summarizePractice(rows, "2026-10-27").wordsLearned).toBe(5);
+    expect(summarizePractice(rows, "2026-10-27").minutesToday).toBe(10);
   });
 });

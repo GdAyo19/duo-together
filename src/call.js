@@ -1,18 +1,4 @@
-import { initiatesOffer } from "./domain/call";
-
-const STUN_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
-
-function iceServers(turn) {
-  const servers = [...STUN_SERVERS];
-  if (turn?.urls) {
-    servers.push({
-      urls: turn.urls,
-      username: turn.username,
-      credential: turn.credential
-    });
-  }
-  return servers;
-}
+import { buildIceServers, initiatesOffer } from "./domain/call";
 
 function describeMediaError(error) {
   if (error?.name === "NotAllowedError") return "Camera and microphone access was blocked.";
@@ -21,7 +7,7 @@ function describeMediaError(error) {
   return "Could not start your camera.";
 }
 
-export function createCallSession({ supabase, coupleId, userId, turn, onEvent }) {
+export function createCallSession({ supabase, coupleId, userId, rtc, onEvent }) {
   let channel = null;
   let peer = null;
   let localStream = null;
@@ -29,6 +15,8 @@ export function createCallSession({ supabase, coupleId, userId, turn, onEvent })
   let started = false;
   let pendingCandidates = [];
   let closed = false;
+  let restartAttempts = 0;
+  let restartTimer = null;
 
   const emit = (name, detail = {}) => {
     try {
@@ -46,7 +34,7 @@ export function createCallSession({ supabase, coupleId, userId, turn, onEvent })
   };
 
   async function createPeer() {
-    peer = new RTCPeerConnection({ iceServers: iceServers(turn) });
+    peer = new RTCPeerConnection({ iceServers: buildIceServers(rtc) });
 
     peer.onicecandidate = (event) => {
       if (event.candidate) {
@@ -60,11 +48,20 @@ export function createCallSession({ supabase, coupleId, userId, turn, onEvent })
 
     peer.onconnectionstatechange = () => {
       if (!peer) return;
-      if (peer.connectionState === "connected") emit("connected");
-      if (peer.connectionState === "failed") emit("failed", { reason: "Could not connect the call." });
-      if (peer.connectionState === "disconnected" || peer.connectionState === "closed") {
-        emit("disconnected");
+      if (peer.connectionState === "connected") {
+        restartAttempts = 0;
+        emit("connected");
+        return;
       }
+      if (peer.connectionState === "failed") {
+        restartConnection();
+        return;
+      }
+      if (peer.connectionState === "disconnected") {
+        restartConnection();
+        return;
+      }
+      if (peer.connectionState === "closed") emit("disconnected");
     };
 
     localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
@@ -133,6 +130,33 @@ export function createCallSession({ supabase, coupleId, userId, turn, onEvent })
     if (event === "bye") {
       emit("partner-left");
     }
+  }
+
+  function restartConnection() {
+    if (closed || !peer || !localStream) return;
+    if (restartAttempts >= 2) {
+      emit("failed", { reason: "The call dropped. You can keep learning." });
+      return;
+    }
+    if (!remoteUserId || !initiatesOffer(userId, remoteUserId)) {
+      emit("disconnected");
+      return;
+    }
+    if (restartTimer) clearTimeout(restartTimer);
+    emit("reconnecting");
+    restartTimer = setTimeout(async () => {
+      restartTimer = null;
+      if (closed || !peer) return;
+      restartAttempts += 1;
+      try {
+        const offer = await peer.createOffer({ iceRestart: true });
+        await peer.setLocalDescription(offer);
+        send("offer", { from: userId, description: peer.localDescription });
+      } catch (error) {
+        console.error("Could not restart the call.", error);
+        emit("failed", { reason: "Could not reconnect the call." });
+      }
+    }, 1500);
   }
 
   async function flushCandidates() {
@@ -206,6 +230,8 @@ export function createCallSession({ supabase, coupleId, userId, turn, onEvent })
     if (notifyPartner && remoteUserId) send("bye", { from: userId });
     closed = true;
 
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = null;
     pendingCandidates = [];
     localStream?.getTracks().forEach((track) => track.stop());
     localStream = null;

@@ -48,7 +48,7 @@
         <article class="public-content">
           <p class="public-eyebrow">A clear, simple guide</p>
           <h1>Privacy, in plain language.</h1>
-          <p class="public-lede">Tandem stores practice on your device in preview mode. If you connect an account and shared space, it uses Supabase to sign you in and sync shared activity.</p>
+          <p class="public-lede">Tandem stores practice on your device in preview mode. If you connect an account and shared space, it uses Supabase to sign you in and sync shared activity, and video calls connect your browser straight to your partner's.</p>
 
           <section aria-labelledby="device-title">
             <h2 id="device-title">When you use preview mode</h2>
@@ -57,7 +57,9 @@
 
           <section aria-labelledby="account-title">
             <h2 id="account-title">When cloud sync is connected</h2>
-            <p>Sign-in and account details are handled by the Supabase project configured for Tandem. A shared space can store its name, language, member display names, practice records, and saved phrases. Database policies limit shared records to members of that space; Supabase processes and hosts this data.</p>
+            <p>Sign-in and account details are handled by the Supabase project configured for Tandem. A shared space can store its name, language, member nicknames, practice records, and saved phrases. Database policies limit shared records to members of that space; Supabase processes and hosts this data.</p>
+            <p>Your profile photo is stored in a public Supabase Storage bucket. Anyone who has the image link can view it, so treat it as shareable. Replacing a photo deletes the previous file, and you can remove your photo from your profile at any time.</p>
+            <p>Video calls connect your browser directly to your partner's browser. Camera and microphone streams are not recorded or stored by Tandem; only the connection signals pass through Supabase. Camera and microphone access starts only after you choose to join a call, and stops when you end the call or close the challenge.</p>
             <p>If you use Google sign-in, Google also handles its part of the authentication flow. Tandem does not receive your Google password.</p>
           </section>
 
@@ -70,8 +72,10 @@
             <h2 id="choices-title">Your choices</h2>
             <ul>
               <li>Use preview mode without signing in; its practice stays in this browser.</li>
-              <li>Sign out from your account controls to end the current session on this device.</li>
-              <li>To manage or remove cloud account data, use the Supabase project that operates this deployment.</li>
+              <li>Change or remove your profile photo and nickname from your profile.</li>
+              <li>Leave a shared space, regenerate its invite code, or delete your Tandem data from your profile.</li>
+              <li>Sign out from your account controls to end the current session on this device. Sessions also end automatically after an hour without activity.</li>
+              <li>To remove the sign-in account itself, use the Supabase project that operates this deployment.</li>
             </ul>
             <p>Tandem is an independent project. For service-specific account and data handling, review the privacy information from Supabase or Google as applicable.</p>
           </section>

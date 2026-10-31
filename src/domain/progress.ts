@@ -5,6 +5,7 @@ export interface PracticeRow {
   practice_date?: string;
   words_learned?: number;
   minutes?: number;
+  phrase_keys?: string[];
 }
 
 export interface Partner {
@@ -32,10 +33,13 @@ export function summarizePractice(rows: PracticeRow[], today: string): PracticeS
   const minutesToday = rows
     .filter((row) => practiceDate(row) === today)
     .reduce((total, row) => total + Number(row.minutes || 0), 0);
+  const phraseKeys = new Set(rows.flatMap((row) => row.phrase_keys || []));
 
   return {
     learnedDays: learnedDays.size,
-    wordsLearned: learnedDays.size * 3,
+    // Repeat visits to the same phrase count once; older rows without keys fall
+    // back to the original three-phrases-per-practised-day estimate.
+    wordsLearned: phraseKeys.size > 0 ? phraseKeys.size : learnedDays.size * 3,
     minutesToday
   };
 }

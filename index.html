@@ -33,6 +33,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="manifest" href="./manifest.webmanifest">
     <script type="module" src="./config.js"></script>
     <script type="module" src="app.js"></script>
   </head>
@@ -63,7 +64,7 @@
         </nav>
         <div class="sidebar-foot">
           <p>A small daily ritual<br>for two curious hearts.</p>
-          <span>Made for Okomi &amp; Ifemi</span>
+          <span>Made for two</span>
           <a class="sidebar-about-link" href="./about.html">About Tandem</a>
           <a class="sidebar-about-link" href="./privacy.html">Privacy</a>
         </div>
@@ -73,6 +74,7 @@
         <div class="main-inner">
           <div class="account-row">
             <span class="sync-state" id="sync-state"><span class="sync-dot"></span><span id="sync-label">Saved on this device</span></span>
+            <button class="sync-retry hidden" id="sync-retry" type="button">Retry sync</button>
             <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark mode</span></button>
             <button class="account-button" id="account-button" type="button">Sign in to sync</button>
           </div>
@@ -87,9 +89,9 @@
             </div>
             <form class="pairing-form" id="create-space-form">
               <label for="couple-input">Your shared space name</label>
-              <input id="couple-input" name="coupleName" maxlength="50" value="Okomi &amp; Ifemi" required>
+              <input id="couple-input" name="coupleName" maxlength="50" placeholder="Ours" required>
               <label for="create-name-input">Your name in the space</label>
-              <input id="create-name-input" name="displayName" maxlength="32" value="Okomi" required>
+              <input id="create-name-input" name="displayName" maxlength="32" placeholder="Your name" required>
               <label for="create-language">Language to learn together</label>
               <select id="create-language" name="language"><option value="fr">French</option><option value="es">Spanish</option><option value="it">Italian</option></select>
               <button class="primary-button" type="submit">Create shared space <span aria-hidden="true">→</span></button>
@@ -312,7 +314,10 @@
           </div>
         </header>
         <input class="hidden" id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp">
-        <p class="profile-space-detail avatar-status" id="avatar-status" aria-live="polite"></p>
+        <div class="avatar-actions">
+          <p class="profile-space-detail avatar-status" id="avatar-status" aria-live="polite"></p>
+          <button class="text-action avatar-remove" id="avatar-remove" type="button">Remove photo</button>
+        </div>
 
         <section class="profile-section" aria-labelledby="profile-details-title">
           <div class="profile-section-heading">
@@ -326,6 +331,7 @@
               <button class="outline-button" id="nickname-save" type="submit">Save</button>
             </div>
           </form>
+          <p class="profile-space-detail hidden" id="profile-edit-note">Create or join a shared space to add a photo and nickname.</p>
           <dl class="profile-details">
             <div><dt>Email</dt><dd id="profile-email-detail"></dd></div>
             <div><dt>Member since</dt><dd id="profile-joined"></dd></div>
@@ -343,12 +349,24 @@
             <div><strong id="profile-phrases">0</strong><span>saved phrases</span></div>
           </div>
           <button class="outline-button hidden" id="profile-create-space" type="button">Create or join your shared space</button>
+          <div class="space-actions hidden" id="space-actions">
+            <button class="outline-button" id="profile-invite-reset" type="button">New invite code</button>
+            <button class="outline-button danger-outline" id="profile-leave" type="button">Leave shared space</button>
+            <button class="outline-button danger-outline" id="profile-delete" type="button">Delete my Tandem data</button>
+          </div>
         </section>
 
         <section class="profile-section profile-security" aria-labelledby="profile-security-title">
           <div class="profile-section-heading">
             <div><p class="context-label">SIGN-IN &amp; SECURITY</p><h3 id="profile-security-title">Password</h3></div>
           </div>
+          <form class="dialog-form" id="email-change-form">
+            <label for="profile-email-input">Email address</label>
+            <div class="nickname-row">
+              <input id="profile-email-input" type="email" name="email" autocomplete="email" placeholder="you@your-domain.com" required>
+              <button class="outline-button" id="email-change-save" type="submit">Update</button>
+            </div>
+          </form>
           <p class="profile-space-detail" id="password-status">Manage your password here whenever you need to.</p>
           <button class="outline-button" id="password-settings-toggle" type="button" aria-expanded="false" aria-controls="password-settings">Password settings</button>
           <div class="password-settings hidden" id="password-settings">
@@ -366,6 +384,14 @@
               <button class="primary-button" type="submit">Save password</button>
             </form>
           </div>
+        </section>
+
+        <section class="profile-section" aria-labelledby="profile-reminder-title">
+          <div class="profile-section-heading">
+            <div><p class="context-label">YOUR DAILY RITUAL</p><h3 id="profile-reminder-title">Practice reminder</h3></div>
+          </div>
+          <p class="profile-space-detail">Get a browser reminder on days you haven't practiced yet. It only appears while Tandem or another app tab is open.</p>
+          <button class="outline-button" id="reminder-toggle" type="button" aria-pressed="false">Turn on reminder</button>
         </section>
 
         <section class="profile-section profile-support" aria-labelledby="profile-support-title">
@@ -401,6 +427,7 @@
           <div class="call-stage">
             <video id="partner-video" autoplay playsinline></video>
             <div class="call-placeholder" id="call-placeholder">
+              <img class="call-partner-avatar hidden" id="call-partner-avatar" alt="" width="56" height="56">
               <span class="call-placeholder-mark" aria-hidden="true">◍</span>
               <p id="partner-name-label">Your person</p>
             </div>
@@ -408,12 +435,21 @@
           </div>
           <p class="call-status" id="call-status" aria-live="polite">Connecting your call…</p>
           <div class="call-controls">
+            <button class="call-button call-join" id="call-join" type="button">Join video</button>
             <button class="call-button" id="call-mute" type="button" aria-pressed="false">Mute</button>
             <button class="call-button" id="call-video" type="button" aria-pressed="false">Camera off</button>
             <button class="call-button call-button-end" id="call-end" type="button">End call</button>
           </div>
         </section>
-        <div class="quiz-content" id="quiz-content">
+        <div class="quiz-learn" id="quiz-learn">
+          <div class="quiz-topline"><span class="context-label">Learn them first</span><span>3 phrases</span></div>
+          <p class="quiz-prompt">Today's little lesson</p>
+          <h2 class="quiz-question">Say them out loud together.</h2>
+          <p class="quiz-hint">Read each phrase, listen if you like, then try the quiz from memory.</p>
+          <ul class="learn-list" id="learn-list"></ul>
+          <button class="primary-button quiz-next" id="quiz-start" type="button">Start the quiz</button>
+        </div>
+        <div class="quiz-content hidden" id="quiz-content">
           <div class="quiz-topline"><span class="context-label">Your little challenge</span><span id="question-number">1 / 3</span></div>
           <div class="quiz-progress"><span id="quiz-progress-bar"></span></div>
           <p class="quiz-prompt" id="quiz-prompt">How do you say this in French?</p>
@@ -430,6 +466,16 @@
           <div class="result-points"><strong>+3 phrases</strong> added to your shared practice</div>
           <button class="primary-button" id="finish-challenge" type="button">Back to your space</button>
         </div>
+      </div>
+    </dialog>
+
+    <dialog class="dialog idle-dialog" id="idle-dialog" aria-labelledby="idle-title">
+      <p class="context-label">Still there?</p>
+      <h2 id="idle-title">You'll be signed out soon.</h2>
+      <p class="dialog-copy" id="idle-copy">You'll be signed out after an hour without activity.</p>
+      <div class="idle-actions">
+        <button class="primary-button" id="idle-stay" type="button">Stay signed in</button>
+        <button class="auth-switch-button" id="idle-sign-out" type="button">Sign out now</button>
       </div>
     </dialog>
 
